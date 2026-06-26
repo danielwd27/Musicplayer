@@ -1,0 +1,83 @@
+:root {
+  --white: #fefae0;
+  --brown: #bc6c25;
+  --brown-soft: #dda15e;
+  --gray-1: #d5dacd;
+  --gray-2: #4a7a5d;
+  --green-1: #588157;
+  --green-2: #3a5a40;
+  --green-3: #344e41;
+  --dark-gray-1: #282828;
+  --dark-gray-2: #181818;
+  --dark-gray-3: #3e3e3e;
+  --text-1: rgba(255, 255, 245, 0.86);
+  --text-2: rgba(235, 235, 245, 0.6);
+  --text-3: rgba(235, 235, 245, 0.38);
+
+  --button-alt-border: transparent;
+  --button-alt-text: var(--text-1);
+  --button-alt-bg: var(--gray-3);
+  --button-alt-hover-border: transparent;
+  --button-alt-hover-text: var(--text-1);
+  --button-alt-hover-bg: var(--gray-2);
+
+  --neutral-button-hover-text: var(--white)
+}
+
+:root {
+  --color-background: var(--green-3);
+  --color-background-soft: var(--green-1);
+  --color-background-mute: var(--green-2);
+
+  --neutral-background: var(--dark-gray-1);
+  --neutral-background-dark: var(--dark-gray-2);
+  --neutral-background-light: var(--dark-gray-3);
+  --color-text: var(--white);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--green-1) transparent;
+  
+}
+
+*:focus {
+  color: var(--text-1);
+  background-color:#344e41;
+  outline: 3px solid var(--green-1);
+}
+
+ul {
+  list-style: none;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background-mute);
+  line-height: 1.6;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
