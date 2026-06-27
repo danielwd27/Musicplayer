@@ -42,7 +42,7 @@ export default function EditPlaylistModal({
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2>Edit Details</h2>
+        <h2 style={{ marginBottom: '8px' }}>Edit Details</h2>
         
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
           <div 

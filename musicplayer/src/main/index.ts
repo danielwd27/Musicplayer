@@ -182,6 +182,9 @@ app.whenReady().then(() => {
         { label: 'Next Track', accelerator: 'CmdOrCtrl+Right' },
         { label: 'Previous Track', accelerator: 'CmdOrCtrl+Left' }
       ]
+    },
+    {
+      label: 'Appearance'
     }
   ]
   

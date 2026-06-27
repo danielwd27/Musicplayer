@@ -1,9 +1,16 @@
 @import './base.css';
 
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-background-mute);
+}
+
 body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   background-size: cover;
   user-select: none;
@@ -30,9 +37,9 @@ code {
   height: 100vh;
   width: 100vw;  
   
-  grid-template-columns: 250px 1fr; 
+  grid-template-columns: 220px 1fr; 
   
-  grid-template-rows: 60px 1fr; 
+  grid-template-rows: 70px 1fr; 
   
   /* background-color: var(--color-background-mute);  */
   color: var(--white);
@@ -48,7 +55,7 @@ code {
 }
 
 .topbar {
-  grid-column: 1 / 3; 
+  grid-column: 1 / 4; 
   grid-row: 1 / 2; 
 
   background-color: var(--color-background-mute);
@@ -67,7 +74,8 @@ code {
   overflow-y: auto;
   border-radius: 12px;
   box-shadow: 0 12px 24px rgba(0,0,0,0.5);
-  margin-top: 12px;
+  margin-right: 16px;
+  margin-top: 6px;
   margin-bottom: 16px;
 }
 
@@ -79,6 +87,10 @@ code {
   margin-bottom: 24px;
   border-bottom: 1px solid #282828;
   padding-bottom: 20px;
+}
+
+.p {
+  color: var(--text-2)
 }
 
 .sidebar ul {
@@ -161,6 +173,25 @@ code {
   color: #ffffff;
 }
 
+.sidebar-queue {
+  grid-column: 3;
+  grid-row: 2 / 3;
+  width: 260px;
+  background-color: var(--color-background);
+  padding: 12px;
+  overflow-y: auto;
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+  margin-right: 16px;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+.sidebar-queue-closed {
+  width: 0px;
+  padding: 0px;
+}
+
 .btn {
   background: var(--gray-2);
   border: 1px solid var(--green-3);
@@ -208,13 +239,8 @@ code {
   color: var(--white);
 }
 
-
 #root {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  margin-bottom: 80px;
+  display: block;
 }
 
 .play-btn {
@@ -442,8 +468,9 @@ code {
 }
 
 .title-input {
-  background: transparent;
+  background: var(--neutral-background-dark);
   border: 0px;
+  border-radius: 6px;
   color: var(--text-1);
   padding: 10px;
   font-size: 16px;

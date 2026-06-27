@@ -41,7 +41,7 @@ export default function AddSongsModal({ isOpen, onClose, onSave, library }: AddS
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{ width: '500px', height: '600px', display: 'flex', flexDirection: 'column' }}>
-        <h2 style={{ marginBottom: '12px' }}>Add Songs to Playlist</h2>
+        <h2 style={{ marginBottom: '8px' }}>Add Songs to Playlist</h2>
         
         <input 
           className="search-input" 

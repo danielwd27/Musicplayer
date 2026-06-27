@@ -50,9 +50,13 @@
 }
 
 *:focus {
-  color: var(--text-1);
-  background-color:#344e41;
-  outline: 3px solid var(--green-1);
+  outline: none;
+  box-shadow: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--green-1);
+  outline-offset: 2px;
 }
 
 ul {

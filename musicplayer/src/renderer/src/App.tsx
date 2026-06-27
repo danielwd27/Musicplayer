@@ -6,7 +6,8 @@ import PlaylistView from './views/PlaylistView'
 import NewPlaylistModal from './components/NewPlaylistModal'
 import AddSongsModal from './components/AddSongsModal'
 import EditPlaylistModal from './components/EditPlaylistModal'
-import QueuePopover from './components/QueuePopover'
+// import QueuePopover from './components/QueuePopover'
+import QueueSidebar from './components/QueueSidebar'
 import TrackContextMenu, { TrackContextMenuData } from './components/TrackContextMenu'
 import PlaylistContextMenu, { PlaylistMenuData } from './components/PlaylistContextMenu'
 
@@ -369,8 +370,8 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
           <li>Artists</li>
         </ul>
       </nav>
-      <nav className="sidebar" style={{ gridColumn: '4'}}>
-        <QueuePopover 
+      <nav className={isQueueOpen ? 'sidebar sidebar-queue' : 'sidebar sidebar-queue-closed'}>
+        <QueueSidebar
             isOpen={isQueueOpen} 
             queue={playbackQueue} 
             currentIndex={currentTrackIndex} 
@@ -436,37 +437,15 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
           <span className="player-time player-time-duration">-{formatTime(duration-currentTime)}</span>
         </div>
         
-        {/* --- THE QUEUE BUTTON & POPOVER --- */}
-        {/* The relative position here acts as the anchor! */}
-        <div style={{ position: 'relative' }}>
-          
           <button 
             className="btn" 
             onClick={() => setIsQueueOpen(!isQueueOpen)}
-            style={{ color: isQueueOpen ? '#1db954' : 'inherit' }} // Turns green when open!
+            style={{ backgroundColor: isQueueOpen ? 'var(--green-3)' : 'var(--gray-2)' }} // Turns green when open!
           >
             <svg width="20px" height="20px" viewBox="0 0 24 24" fill="none">
-              <path d="M8 6.00067L21 6.00139M8 12.0007L21 12.0015M8 18.0007L21 18.0015M3.5 6H3.51M3.5 12H3.51M3.5 18H3.51M4 6C4 6.27614 3.77614 6.5 3.5 6.5C3.22386 6.5 3 6.27614 3 6C3 5.72386 3.22386 5.5 3.5 5.5C3.77614 5.5 4 5.72386 4 6ZM4 12C4 12.2761 3.77614 12.5 3.5 12.5C3.22386 12.5 3 12.2761 3 12C3 11.7239 3.22386 11.5 3.5 11.5C3.77614 11.5 4 11.7239 4 12ZM4 18C4 18.2761 3.77614 18.5 3.5 18.5C3.22386 18.5 3 18.2761 3 18C3 17.7239 3.22386 17.5 3.5 17.5C3.77614 17.5 4 17.7239 4 18Z" stroke='var(--button-alt-text)' strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 6.00067L21 6.00139M8 12.0007L21 12.0015M8 18.0007L21 18.0015M3.5 6H3.51M3.5 12H3.51M3.5 18H3.51M4 6C4 6.27614 3.77614 6.5 3.5 6.5C3.22386 6.5 3 6.27614 3 6C3 5.72386 3.22386 5.5 3.5 5.5C3.77614 5.5 4 5.72386 4 6ZM4 12C4 12.2761 3.77614 12.5 3.5 12.5C3.22386 12.5 3 12.2761 3 12C3 11.7239 3.22386 11.5 3.5 11.5C3.77614 11.5 4 11.7239 4 12ZM4 18C4 18.2761 3.77614 18.5 3.5 18.5C3.22386 18.5 3 18.2761 3 18C3 17.7239 3.22386 17.5 3.5 17.5C3.77614 17.5 4 17.7239 4 18Z" stroke='var(--button-alt-text)' strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: isQueueOpen ? 'var(--brown-soft)' : 'var(--button-alt-text)' }}/>
             </svg>
           </button>
-
-          <QueuePopover 
-            isOpen={isQueueOpen} 
-            queue={playbackQueue} 
-            currentIndex={currentTrackIndex} 
-            onClose={() => setIsQueueOpen(false)} 
-            
-            onPlayTrack={(index) => {
-              setCurrentTrackIndex(index)
-              setCurrentTime(0)
-            }}
-
-            onContextMenu={(e, track, index) => {
-              e.preventDefault()
-              setTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
-            }}
-          />
-        </div>
         <input type="text" className="search-input" placeholder="Search" />
       </header>
 

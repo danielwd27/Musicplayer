@@ -35,7 +35,7 @@ export default function NewPlaylistModal({ isOpen, onClose, onCreate }: NewPlayl
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2>Create New Playlist</h2>
+        <h2 style={{ marginBottom: '8px' }}>Create New Playlist</h2>
         
         {/* IMAGE PREVIEW & PICKER */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
