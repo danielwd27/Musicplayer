@@ -15,7 +15,9 @@ const api = {
   updatePlaylist: (id: number, name: string, desc: string, coverImage: string | null) => ipcRenderer.invoke('db:updatePlaylist', id, name, desc, coverImage),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) => ipcRenderer.invoke('db:addTracksToPlaylist', playlistId, trackIds),
-  deletePlaylist: (id: number) => ipcRenderer.invoke('db:deletePlaylist', id)
+  deletePlaylist: (id: number) => ipcRenderer.invoke('db:deletePlaylist', id),
+  removeTrackFromPlaylist: (playlistId: number, trackId: number) => ipcRenderer.invoke('db:removeTrackFromPlaylist', playlistId, trackId),
+  deleteTrack: (trackId: number) => ipcRenderer.invoke('db:deleteTrack', trackId)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -3,10 +3,11 @@ import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initializeDatabase, insertTrack, getAllTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
-        deletePlaylist } from './database'
+        deletePlaylist, removeTrackFromPlaylist, deleteTrack } from './database'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs/promises'
 import path from 'path'
+import { parseFile } from 'music-metadata'
 
 function createWindow(): void {
   // Create the browser window.
@@ -116,6 +117,14 @@ app.whenReady().then(() => {
     return deletePlaylist(id)
   })
 
+  ipcMain.handle('db:removeTrackFromPlaylist', (_, playlistId: number, trackId: number) => {
+    return removeTrackFromPlaylist(playlistId, trackId)
+  })
+
+  ipcMain.handle('db:deleteTrack', (_, trackId: number) => {
+    return deleteTrack(trackId)
+  })
+
   ipcMain.handle('dialog:selectImage', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
@@ -137,16 +146,33 @@ app.whenReady().then(() => {
       const allFiles = await fs.readdir(folderPath, { recursive: true })
       const supportedExtensions = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.aac']
 
-      allFiles.forEach(file => {
+      for (const file of allFiles) {
         const ext = path.extname(file).toLowerCase()
         if (supportedExtensions.includes(ext)) {
           const fullPath = path.join(folderPath, file)
           const filename = path.basename(file)
           
-          // Save it to SQLite
-          insertTrack(fullPath, filename) 
+          // Extract metadata
+          let duration: number | undefined
+          let title: string | undefined
+          let artist: string | undefined
+          let album: string | undefined
+          let year: number | undefined
+          
+          try {
+            const metadata = await parseFile(fullPath)
+            duration = metadata.format.duration
+            title = metadata.common.title
+            artist = metadata.common.albumartist
+            album = metadata.common.album
+            year = metadata.common.year
+          } catch (err) {
+            console.error(`Failed to read metadata for ${fullPath}:`, err)
+          }
+          
+          insertTrack(fullPath, filename, duration, title, artist, album, year)
         }
-      })
+      }
 
       // Return the newly updated database library
       return getAllTracks() 

@@ -1,16 +1,23 @@
 import React from 'react'
 import { Track } from '../env'
 
+const formatDuration = (seconds?: number): string => {
+  if (!seconds || isNaN(seconds)) return ''
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 interface QueueSidebarProps {
   isOpen: boolean
   queue: Track[]
-  currentIndex: number | null
+  currentTrack: Track | null
   onClose: () => void
   onPlayTrack: (index: number) => void
   onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void 
 }
 
-export default function QueuePopover({ isOpen, queue, currentIndex, onClose, onPlayTrack, onContextMenu: onTrackContextMenu }: QueueSidebarProps) {
+export default function QueuePopover({ isOpen, queue, currentTrack, onPlayTrack, onContextMenu: onTrackContextMenu }: QueueSidebarProps) {
   if (!isOpen) return null
 
   return (
@@ -25,19 +32,18 @@ export default function QueuePopover({ isOpen, queue, currentIndex, onClose, onP
             {queue.map((track, i) => (
               <div 
                 key={`${track.id}-${i}`}
-                className={`queue-item ${currentIndex === i ? 'playing' : ''}`}
+                className={`queue-item ${currentTrack?.id === track.id ? 'playing' : ''}`}
                 onDoubleClick={() => {
                   onPlayTrack(i)
                 }}
-                // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, i)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                {/* Show a play icon if it's the current track, otherwise show the number */}
-                <span className="queue-item-index">
-                  {currentIndex === i ? '▶' : i + 1}
-                </span>
-                <span className="queue-item-title">
+                <span className="item-title" style={{ flex: 1 }}>
                   {track.title || track.filename}
+                </span>
+                <span className='text-soft' style={{marginLeft: '10px'}}>
+                  {formatDuration(track.duration)}
                 </span>
               </div>
             ))}

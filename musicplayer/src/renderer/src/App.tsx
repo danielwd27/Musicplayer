@@ -11,6 +11,102 @@ import QueueSidebar from './components/QueueSidebar'
 import TrackContextMenu, { TrackContextMenuData } from './components/TrackContextMenu'
 import PlaylistContextMenu, { PlaylistMenuData } from './components/PlaylistContextMenu'
 
+type QueueNode<T> = {
+  value: T
+  next: QueueNode<T> | null
+}
+
+class FIFOQueue<T> {
+  private head: QueueNode<T> | null = null
+  private tail: QueueNode<T> | null = null
+  private sizeValue = 0
+
+  enqueue(value: T): void {
+    const node: QueueNode<T> = { value, next: null }
+
+    if (!this.tail) {
+      this.head = node
+      this.tail = node
+    } else {
+      this.tail.next = node
+      this.tail = node
+    }
+
+    this.sizeValue += 1
+  }
+
+  dequeue(): T | null {
+    if (!this.head) return null
+
+    const value = this.head.value
+    this.head = this.head.next
+
+    if (!this.head) {
+      this.tail = null
+    }
+
+    this.sizeValue -= 1
+    return value
+  }
+
+  pop(): T | null {
+    if (!this.tail) return null
+
+    let current = this.head
+    let previous: QueueNode<T> | null = null
+
+    while (current?.next) {
+      previous = current
+      current = current.next
+    }
+
+    if (!current) return null
+
+    if (previous) {
+      previous.next = null
+      this.tail = previous
+    } else {
+      this.head = null
+      this.tail = null
+    }
+
+    this.sizeValue -= 1
+    return current.value
+  }
+
+  peek(): T | null {
+    return this.head?.value ?? null
+  }
+
+  clear(): void {
+    this.head = null
+    this.tail = null
+    this.sizeValue = 0
+  }
+
+  get length(): number {
+    return this.sizeValue
+  }
+
+  toArray(): T[] {
+    const values: T[] = []
+    let current = this.head
+
+    while (current) {
+      values.push(current.value)
+      current = current.next
+    }
+
+    return values
+  }
+
+  clone(): FIFOQueue<T> {
+    const clone = new FIFOQueue<T>()
+    this.toArray().forEach((item) => clone.enqueue(item))
+    return clone
+  }
+}
+
 type ViewState = 
   | { type: 'library' }
   | { type: 'albums'}
@@ -23,7 +119,9 @@ function App() {
   const [tracks, setTracks] = useState<Track[]>([]) // tracks currently in view
   const [libraryCount, setLibraryCount] = useState(0) // total library track count
   const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [playbackQueue, setPlaybackQueue] = useState<Track[]>([])
+  const [playbackQueue, setPlaybackQueue] = useState<FIFOQueue<Track>>(new FIFOQueue<Track>())
+  const [historyQueue, setHistoryQueue] = useState<FIFOQueue<Track>>(new FIFOQueue<Track>())
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const [allTracks, setAllTracks] = useState<Track[]>([]) // all tracks in library
 
   // View states
@@ -37,13 +135,23 @@ function App() {
   const [currentView, setCurrentView] = useState<ViewState>({ type: 'library' })
 
   // Audioplayer states
-  const [currentTrackIndex, setCurrentTrackIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isSeeking, setIsSeeking] = useState(false)
   
   const audioRef = useRef<HTMLAudioElement>(null)
+
+  // Helper functions to manage context menus (only one open at a time)
+  const openTrackContextMenu = (data: TrackContextMenuData) => {
+    setPlaylistContextMenu(null)
+    setTrackContextMenu(data)
+  }
+
+  const openPlaylistContextMenu = (data: PlaylistMenuData) => {
+    setTrackContextMenu(null)
+    setPlaylistContextMenu(data)
+  }
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -185,19 +293,16 @@ function App() {
   }
 
   const handlePlayPlaylist = async (pl: Playlist) => {
-    // Fetch the tracks for this specific playlist and add them to the queue
     const plTracks = await window.api.getPlaylistTracks(pl.id)
+
     if (plTracks && plTracks.length > 0) {
-      // Add them right after the currently playing song
-      const newQueue = [...playbackQueue]
-      const insertIndex = currentTrackIndex !== null ? currentTrackIndex + 1 : 0
-      newQueue.splice(insertIndex, 0, ...plTracks)
-      setPlaybackQueue(newQueue)
-      
-      // If nothing was playing, start it immediately
-      if (currentTrackIndex === null) {
-        setCurrentTrackIndex(0)
-      }
+      const nextQueue = new FIFOQueue<Track>()
+      plTracks.slice(1).forEach((track) => nextQueue.enqueue(track))
+
+      setPlaybackQueue(nextQueue)
+      setCurrentTrack(plTracks[0] ?? null)
+      setCurrentTime(0)
+      setDuration(0)
     }
   }
 
@@ -209,22 +314,58 @@ function App() {
   // Queue Controls
 
   const handlePlayNext = (track: Track) => {
-    // If nothing is playing, just start it
-    if (currentTrackIndex === null) {
-      setPlaybackQueue([track])
-      setCurrentTrackIndex(0)
+    if (!currentTrack) {
+      setCurrentTrack(track)
+      setPlaybackQueue(new FIFOQueue<Track>())
       return
     }
-    
-    // Otherwise, slice it into the queue right after the current track
-    const newQueue = [...playbackQueue]
-    newQueue.splice(currentTrackIndex + 1, 0, track)
-    setPlaybackQueue(newQueue)
+
+    setPlaybackQueue((prev) => {
+      const next = prev.clone()
+      next.enqueue(track)
+      return next
+    })
   }
 
   const handleAddToQueue = (track: Track) => {
-    // Add it to the very end of the list
-    setPlaybackQueue([...playbackQueue, track])
+    setPlaybackQueue((prev) => {
+      const next = prev.clone()
+      next.enqueue(track)
+      return next
+    })
+  }
+
+  const handleRemoveTrackFromPlaylist = async (trackId: number) => {
+    if (currentView.type !== 'playlist') return
+
+    try {
+      await window.api.removeTrackFromPlaylist(currentView.id, trackId)
+      
+      const updatedTracks = await window.api.getPlaylistTracks(currentView.id)
+      setTracks(updatedTracks || [])
+    } catch (error) {
+      console.error("Failed to remove track from playlist:", error)
+    }
+  }
+
+  const handleDeleteTrackFromLibrary = async (trackId: number) => {
+    try {
+      await window.api.deleteTrack(trackId)
+      
+      // Refresh the library
+      const updatedLibrary = await window.api.getLibrary()
+      setAllTracks(updatedLibrary || [])
+      setTracks(updatedLibrary || [])
+      setLibraryCount((updatedLibrary || []).length)
+      
+      // If we're in a playlist view, also refresh that
+      if (currentView.type === 'playlist') {
+        const updatedPlaylistTracks = await window.api.getPlaylistTracks(currentView.id)
+        setTracks(updatedPlaylistTracks || [])
+      }
+    } catch (error) {
+      console.error("Failed to delete track from library:", error)
+    }
   }
 
   // --- PLAYBACK CONTROLS ---
@@ -267,8 +408,8 @@ function App() {
   const handleSliderMouseDown = () => setIsSeeking(true)
   const handleSliderMouseUp = () => setIsSeeking(false)
 
-const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrackIndex]
-    ? `local://stream?path=${encodeURIComponent(playbackQueue[currentTrackIndex].file_path.replace(/\\/g, '/'))}` 
+const currentAudioSrc = currentTrack
+    ? `local://stream?path=${encodeURIComponent(currentTrack.file_path.replace(/\\/g, '/'))}` 
     : ''
 
   useEffect(() => {
@@ -282,15 +423,16 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
     }
   }, [currentAudioSrc]) 
 
-  const playTrack = (index: number) => {
-    setPlaybackQueue([...tracks]) 
-    setCurrentTrackIndex(index)
+  const playTrack = (track: Track) => {
+    setPlaybackQueue(new FIFOQueue<Track>())
+    setHistoryQueue(new FIFOQueue<Track>())
+    setCurrentTrack(track)
     setCurrentTime(0)
     setDuration(0)
   }
 
   const togglePlayPause = () => {
-    if (!audioRef.current || currentTrackIndex === null) return
+    if (!audioRef.current || !currentTrack) return
 
     if (isPlaying) {
       audioRef.current.pause()
@@ -302,24 +444,63 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
   }
 
   const playNext = () => {
-    if (currentTrackIndex === null || playbackQueue.length === 0) return
-    let nextIndex = currentTrackIndex + 1
-    if (nextIndex >= playbackQueue.length) nextIndex = 0 
-    
-    setCurrentTrackIndex(nextIndex)
+    if (!currentTrack) return
+
+    setHistoryQueue((prev) => {
+      const next = prev.clone()
+      next.enqueue(currentTrack)
+      return next
+    })
+
+    const nextTrack = playbackQueue.dequeue()
+    if (!nextTrack) {
+      setCurrentTrack(null)
+      setIsPlaying(false)
+      return
+    }
+
+    setCurrentTrack(nextTrack)
     setCurrentTime(0)
     setDuration(0)
   }
 
   const playPrev = () => {
-    if (currentTrackIndex === null || playbackQueue.length === 0) return
-    let prevIndex = currentTrackIndex - 1
-    if (prevIndex < 0) prevIndex = playbackQueue.length - 1 
-    
-    setCurrentTrackIndex(prevIndex)
+    if (!currentTrack) return
+
+    const replayThresholdSeconds = 5
+
+    if (currentTime > replayThresholdSeconds) {
+      setCurrentTime(0)
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0
+        if (isPlaying) {
+          audioRef.current.play().catch((err) => console.error('Playback error:', err))
+        }
+      }
+      return
+    }
+
+    const previousTrack = historyQueue.pop()
+    if (!previousTrack) {
+      setCurrentTime(0)
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0
+      }
+      return
+    }
+
+    setPlaybackQueue((prev) => {
+      const next = prev.clone()
+      next.enqueue(currentTrack)
+      return next
+    })
+
+    setCurrentTrack(previousTrack)
     setCurrentTime(0)
     setDuration(0)
   }
+
+  const queueItems = playbackQueue.toArray()
 
   return (
     <div className="app-container">
@@ -343,10 +524,9 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
                 <li 
                   key={pl.id}
                   onClick={() => setCurrentView({ type: 'playlist', id: pl.id, name: pl.name, desc: pl.desc || '', coverImagePath: pl.cover_image_path || null })}
-                  // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
                   onContextMenu={(e: React.MouseEvent<HTMLLIElement>) => {
                     e.preventDefault()
-                    setPlaylistContextMenu({ x: e.pageX, y: e.pageY, playlist: pl })
+                    openPlaylistContextMenu({ x: e.pageX, y: e.pageY, playlist: pl })
                   }}
                 >
                   <div className="sidebar-thumb">
@@ -373,21 +553,32 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
       <nav className={isQueueOpen ? 'sidebar sidebar-queue' : 'sidebar sidebar-queue-closed'}>
         <QueueSidebar
             isOpen={isQueueOpen} 
-            queue={playbackQueue} 
-            currentIndex={currentTrackIndex} 
+            queue={queueItems} 
+            currentTrack={currentTrack} 
             onClose={() => setIsQueueOpen(false)} 
             
             onPlayTrack={(index) => {
-              setCurrentTrackIndex(index)
-              setCurrentTime(0)
+              const queueTrack = queueItems[index]
+              if (queueTrack) {
+                // Dequeue all items up to and including the selected index
+                setPlaybackQueue((prev) => {
+                  const updated = prev.clone()
+                  for (let i = 0; i <= index; i++) {
+                    updated.dequeue()
+                  }
+                  return updated
+                })
+                
+                setCurrentTrack(queueTrack)
+                setCurrentTime(0)
+              }
             }}
 
             onContextMenu={(e, track, index) => {
               e.preventDefault()
-              setTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+              openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
             }}
           />
-
       </nav>
 
       <header className="topbar">
@@ -400,22 +591,30 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
           onLoadedMetadata={handleLoadedMetadata}
         />
 
-        <button className="control-btn" onClick={playPrev}>⏮</button>
+        <div className='playback-controls'>
+          <button className="control-btn" onClick={playPrev}>⏮</button>
+          <button className="play-btn" onClick={togglePlayPause}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="control-btn" onClick={playNext}>⏭</button></div>
         
-        <button className="play-btn" onClick={togglePlayPause}>
-          {isPlaying ? '⏸' : '▶'}
-        </button>
-        
-        <button className="control-btn" onClick={playNext}>⏭</button>
-
+        <div className='player-img'>
+            <span>🎵</span>
+          </div>
         <div className="player-container">
           <button className="btn shuffle-btn">⇄</button>
           <div className="player-track">
-            {currentTrackIndex !== null && playbackQueue[currentTrackIndex] 
-              ? playbackQueue[currentTrackIndex].filename 
+            {currentTrack
+              ? currentTrack.filename 
               : 'No track selected'}
           </div>
-          <div className="player-info">Artist Name - Album Name</div>
+          <div className="player-info">
+            {currentTrack?.artist ?
+            currentTrack?.artist : 'Unknown Artist'}
+            {' — '}
+            {currentTrack?.album ?
+            currentTrack.album : 'Unknown Album'}
+            </div>
           <button className="btn repeat-btn">↺</button>
 
           {/* Current time */}
@@ -454,13 +653,13 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
           <>
             <LibraryView 
               tracks={tracks} 
-              currentTrackIndex={currentTrackIndex} 
+              currentTrack={currentTrack} 
               isPlaying={isPlaying} 
               playTrack={playTrack} 
 
               onTrackContextMenu={(e, track, index) => {
                 e.preventDefault()
-                setTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
               }}
             />
           </>
@@ -473,6 +672,10 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
               playlists={playlists} 
               onOpenPlaylist={(pl) => setCurrentView({ type: 'playlist', id: pl.id, name: pl.name, desc: pl.desc || '', coverImagePath: pl.cover_image_path || null })} 
               onNewPlaylist={() => setIsModalOpen(true)}
+              onContextMenu={(e, pl) => {
+                e.preventDefault()
+                openPlaylistContextMenu({ x: e.pageX, y: e.pageY, playlist: pl })
+              }}
             />
           </>
         )}
@@ -484,14 +687,14 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
             playlistDesc={currentView.desc}
             coverImagePath={currentView.coverImagePath || null}
             tracks={tracks} 
-            currentTrackIndex={currentTrackIndex} 
+            currentTrack={currentTrack} 
             isPlaying={isPlaying} 
             playTrack={playTrack} 
             onAddSongsClick={() => setIsAddSongsModalOpen(true)}
             onEditClick={() => setIsEditModalOpen(true)}
             onTrackContextMenu={(e, track, index) => {
                 e.preventDefault()
-                setTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'playlist' })
               }}
             />
           </>
@@ -506,6 +709,8 @@ const currentAudioSrc = currentTrackIndex !== null && playbackQueue[currentTrack
         onClose={() => setTrackContextMenu(null)}
         onPlayNext={handlePlayNext}
         onAddToQueue={handleAddToQueue}
+        onRemoveFromPlaylist={handleRemoveTrackFromPlaylist}
+        onDeleteFromLibrary={handleDeleteTrackFromLibrary}
         // onRemoveFromQueue={handleRemoveFromQueue}
       />
 

@@ -31,6 +31,8 @@ declare global {
       addTracksToPlaylist: (playlistId: number, trackIds: number[]) => Promise<boolean>;
       updatePlaylist: (id: number, name: string, desc: string, coverImagePath: string | null) => Promise<boolean>;
       deletePlaylist: (id: number) => Promise<boolean>;
+      removeTrackFromPlaylist: (playlistId: number, trackId: number) => Promise<boolean>;
+      deleteTrack: (trackId: number) => Promise<boolean>;
     }
   }
 }

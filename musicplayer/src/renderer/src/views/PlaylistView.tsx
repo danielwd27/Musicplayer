@@ -1,15 +1,22 @@
 import React from 'react'
 import { Track } from '../env'
 
+const formatDuration = (seconds?: number): string => {
+  if (!seconds || isNaN(seconds)) return ''
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 interface PlaylistViewProps {
   playlistId: number
   playlistName: string
   playlistDesc?: string
   coverImagePath?: string | null
   tracks: Track[]
-  currentTrackIndex: number | null
+  currentTrack: Track | null
   isPlaying: boolean
-  playTrack: (index: number) => void
+  playTrack: (track: Track) => void
   onAddSongsClick: () => void
   onEditClick: () => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
@@ -20,7 +27,7 @@ export default function PlaylistView({
   playlistDesc,
   coverImagePath,
   tracks, 
-  currentTrackIndex, 
+  currentTrack, 
   isPlaying, 
   playTrack,
   onAddSongsClick,
@@ -76,15 +83,25 @@ export default function PlaylistView({
           {tracks.map((track, index) => (
             <div 
               key={`${track.id}-${index}`} 
-              className={`track-item ${currentTrackIndex === index ? 'active' : ''}`}
-              onDoubleClick={() => playTrack(index)}
-              // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
+              className={`track-item ${currentTrack?.id === track.id ? 'active' : ''}`}
+              onDoubleClick={() => playTrack(track)}
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <span style={{ marginRight: '15px', width: '20px', color: '#b3b3b3' }}>
-                {currentTrackIndex === index && isPlaying ? '▶' : index + 1}
+              <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <span className='text-soft' style={{ marginRight: '20px'}}>
+                  {currentTrack?.id === track.id && isPlaying ? '▶' : index + 1}
+                </span>
+                <span className='item-title'>{track.title || track.filename}</span>
+                  <span className='text-soft track-item-metadata'>
+                  <span>{track.artist}</span>
+                  <span>{track.album}</span>
+                  <span>{track.year}</span>
               </span>
-              <span>{track.title || track.filename}</span>
+              </div>
+              <span className='text-soft'>
+                {formatDuration(track.duration)}
+              </span>
             </div>
           ))}
         </div>

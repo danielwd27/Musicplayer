@@ -12,6 +12,15 @@ const db: DatabaseType = new Database(dbPath)
 db.pragma('journal_mode = WAL') // Write-Ahead Logging for better performance
 db.pragma('foreign_keys = ON')
 
+function ensureColumnExists(tableName: string, columnName: string, columnDefinition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+  const hasColumn = columns.some((column) => column.name === columnName)
+
+  if (!hasColumn) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition}`)
+  }
+}
+
 export function initializeDatabase() {
   // 1. Create the Tracks table
   db.exec(`
@@ -22,7 +31,8 @@ export function initializeDatabase() {
       title TEXT,
       artist TEXT,
       album TEXT,
-      duration INTEGER
+      duration INTEGER,
+      year INTEGER
     );
   `)
 
@@ -41,11 +51,15 @@ export function initializeDatabase() {
       playlist_id INTEGER,
       track_id INTEGER,
       added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      track_order INTEGER DEFAULT 0,
       PRIMARY KEY (playlist_id, track_id),
       FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
       FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
     );
   `)
+
+  ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
+  ensureColumnExists('tracks', 'year', 'year INTEGER')
   
   console.log("Database initialized at:", dbPath)
 }
@@ -54,12 +68,20 @@ export default db
 
 // --- LIBRARY FUNCTIONS ---
 
-export function insertTrack(filePath: string, filename: string) {
+export function insertTrack(
+  filePath: string,
+  filename: string,
+  duration?: number,
+  title?: string,
+  artist?: string,
+  album?: string,
+  year?: number
+) {
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO tracks (file_path, filename) 
-    VALUES (?, ?)
+    INSERT OR IGNORE INTO tracks (file_path, filename, duration, title, artist, album, year) 
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
-  stmt.run(filePath, filename)
+  stmt.run(filePath, filename, duration || null, title || null, artist || null, album || null, year || null)
 }
 
 export function getAllTracks() {
@@ -100,7 +122,7 @@ export function getPlaylistTracks(playlistId: number) {
     FROM tracks 
     JOIN playlist_tracks ON tracks.id = playlist_tracks.track_id 
     WHERE playlist_tracks.playlist_id = ? 
-    ORDER BY playlist_tracks.track_order ASC
+    ORDER BY COALESCE(playlist_tracks.track_order, 0) ASC, playlist_tracks.added_at ASC
   `)
   return stmt.all(playlistId)
 }
@@ -113,5 +135,17 @@ export function getAllPlaylists() {
 export function deletePlaylist(id: number) {
   const stmt = db.prepare('DELETE FROM playlists WHERE id = ?')
   stmt.run(id)
+  return true
+}
+
+export function removeTrackFromPlaylist(playlistId: number, trackId: number) {
+  const stmt = db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?')
+  stmt.run(playlistId, trackId)
+  return true
+}
+
+export function deleteTrack(trackId: number) {
+  const stmt = db.prepare('DELETE FROM tracks WHERE id = ?')
+  stmt.run(trackId)
   return true
 }

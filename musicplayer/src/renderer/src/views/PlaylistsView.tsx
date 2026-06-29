@@ -1,13 +1,14 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Playlist } from '../env'
 
 interface PlaylistsViewProps {
   playlists: Playlist[]
   onOpenPlaylist: (playlist: Playlist) => void
   onNewPlaylist: () => void
+  onContextMenu?: (e: React.MouseEvent, playlist: Playlist) => void
 }
 
-export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist }: PlaylistsViewProps) {
+export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist, onContextMenu }: PlaylistsViewProps) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -27,6 +28,10 @@ export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist
               key={pl.id} 
               className="playlist-card"
               onClick={() => onOpenPlaylist(pl)}
+              onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => {
+                e.preventDefault()
+                onContextMenu?.(e, pl)
+              }}
             >
               {pl.cover_image_path ? (
                 <img 

@@ -15,6 +15,8 @@ interface TrackContextMenuProps {
   onPlayNext: (track: Track) => void
   onAddToQueue: (track: Track) => void
   onRemoveFromQueue?: (index: number) => void
+  onRemoveFromPlaylist?: (trackId: number) => void
+  onDeleteFromLibrary?: (trackId: number) => void
 }
 
 export default function TrackContextMenu({ 
@@ -22,7 +24,9 @@ export default function TrackContextMenu({
   onClose, 
   onPlayNext, 
   onAddToQueue, 
-  onRemoveFromQueue 
+  onRemoveFromQueue,
+  onRemoveFromPlaylist,
+  onDeleteFromLibrary
 }: TrackContextMenuProps) {
   
   // Automatically close the menu if the user clicks ANYWHERE else on the screen
@@ -45,7 +49,6 @@ export default function TrackContextMenu({
     <div 
       className="context-menu" 
       style={{ top: safeY, left: safeX }}
-      // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
       onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => e.preventDefault()}
     >
       <div className="context-menu-item" onClick={() => onPlayNext(menuData.track)}>
@@ -70,6 +73,32 @@ export default function TrackContextMenu({
             onClick={() => onRemoveFromQueue(menuData.index)}
           >
             Remove from Queue
+          </div>
+        </>
+      )}
+
+      {/* Only show "Remove from Playlist" if we right-clicked inside a playlist! */}
+      {menuData.source === 'playlist' && onRemoveFromPlaylist && (
+        <>
+          <div className="context-menu-divider"></div>
+          <div 
+            className="context-menu-item danger" 
+            onClick={() => onRemoveFromPlaylist(menuData.track.id)}
+          >
+            Remove from Playlist
+          </div>
+        </>
+      )}
+
+      {/* Show "Remove from Library" option for all sources */}
+      {onDeleteFromLibrary && (
+        <>
+          <div className="context-menu-divider"></div>
+          <div 
+            className="context-menu-item danger" 
+            onClick={() => onDeleteFromLibrary(menuData.track.id)}
+          >
+            Remove from Library
           </div>
         </>
       )}

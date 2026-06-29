@@ -1,17 +1,23 @@
 import React from 'react'
 import { Track } from '../env'
-import playbackQueue from '../App'
+
+const formatDuration = (seconds?: number): string => {
+  if (!seconds || isNaN(seconds)) return ''
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
 
 // Define the data this page needs to do its job
 interface LibraryViewProps {
   tracks: Track[]
-  currentTrackIndex: number | null
+  currentTrack: Track | null
   isPlaying: boolean
-  playTrack: (index: number) => void
+  playTrack: (track: Track) => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
 }
 
-export default function LibraryView({ tracks, currentTrackIndex, isPlaying, playTrack, onTrackContextMenu: onTrackContextMenu }: LibraryViewProps) {
+export default function LibraryView({ tracks, currentTrack, isPlaying, playTrack, onTrackContextMenu: onTrackContextMenu }: LibraryViewProps) {
   
   if (tracks.length === 0) {
     return <p style={{ color: '#888' }}>No music loaded. Click 'Scan' to start.</p>
@@ -23,24 +29,32 @@ export default function LibraryView({ tracks, currentTrackIndex, isPlaying, play
         <h1>Your Music</h1>
         <button className="btn">Add Songs</button>
       </div>
-      <div className="track-list">
+      <div>
         {tracks.map((track, index) => (
           <div 
             key={track.id} 
             className={`track-item ${
-              /* Compare the ID of the row to the ID of the playing track! */
-              currentTrackIndex !== null && playbackQueue[currentTrackIndex]?.id === track.id 
-                ? 'active' 
-                : ''
+              currentTrack?.id === track.id ? 'active' : ''
             }`}
-            onDoubleClick={() => playTrack(index)}
-            // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
+            onDoubleClick={() => playTrack(track)}
             onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <span style={{ marginRight: '15px', width: '20px' }}>
-              {currentTrackIndex === index && isPlaying ? '▶' : index + 1}
+            <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+              <span style={{ marginRight: '15px', width: '20px' }}>
+                {currentTrack?.id === track.id && isPlaying ? '▶' : index + 1}
+              </span>
+              <span className='item-title'>{track.title || track.filename}</span>
+              <span className='text-soft track-item-metadata'>
+                <span>{track.artist}</span>
+                <span>{track.album}</span>
+                <span>{track.year}</span>
+              </span>
+              
+            </div>
+            <span className='text-soft'>
+              {formatDuration(track.duration)}
             </span>
-            <span>{track.title || track.filename}</span>
           </div>
         ))}
       </div>
