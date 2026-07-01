@@ -27,7 +27,7 @@ export default function LibraryView({ tracks, currentTrack, isPlaying, playTrack
     <>
       <div className="header">
         <h1>Your Music</h1>
-        <button className="btn">Add Songs</button>
+        <button className="btn">+ Add Songs</button>
       </div>
       <div>
         {tracks.map((track, index) => (
@@ -40,21 +40,21 @@ export default function LibraryView({ tracks, currentTrack, isPlaying, playTrack
             onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flex: 1}}>
               <span style={{ marginRight: '15px', width: '20px' }}>
                 {currentTrack?.id === track.id && isPlaying ? '▶' : index + 1}
               </span>
-              <span className='item-title'>{track.title || track.filename}</span>
+              <span className='item-title' style={{width: '20%'}}>{track.title || track.filename}</span>
               <span className='text-soft track-item-metadata'>
                 <span>{track.artist}</span>
                 <span>{track.album}</span>
                 <span>{track.year}</span>
               </span>
-              
-            </div>
-            <span className='text-soft'>
+              <span className='text-soft'>
               {formatDuration(track.duration)}
-            </span>
+              </span>
+            </div>
+            
           </div>
         ))}
       </div>

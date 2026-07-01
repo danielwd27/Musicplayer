@@ -11,7 +11,7 @@ interface PlaylistsViewProps {
 export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist, onContextMenu }: PlaylistsViewProps) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className='header'>
         <h1>Playlists</h1>
         <div>
           <button onClick={onNewPlaylist} className="btn">+ New</button>
@@ -20,7 +20,7 @@ export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist
       </div>
 
       {playlists.length === 0 ? (
-        <p style={{ color: '#888' }}>You haven't created any playlists yet.</p>
+        <p style={{color: 'var(--text-3)'}}>You haven't created any playlists yet.</p>
       ) : (
         <div className="playlists-grid">
           {playlists.map(pl => (
@@ -45,7 +45,7 @@ export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist
                   🎵
                 </div>
               )}
-              <h3>{pl.name}</h3>
+              <h3 style={{ width: '80%', overflow:'hidden', textOverflow:'ellipsis' }}>{pl.name}</h3>
             </div>
           ))}
         </div>

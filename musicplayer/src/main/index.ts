@@ -12,7 +12,9 @@ import { parseFile } from 'music-metadata'
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
+    minWidth: 900,
+    width: 1000,
+    minHeight: 500,
     height: 670,
     show: false,
     icon: icon,

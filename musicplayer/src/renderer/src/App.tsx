@@ -137,6 +137,8 @@ function App() {
   // Audioplayer states
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [volume, setVolume] = useState<number>(1)
+  const [isDraggingVolume, setIsDraggingVolume] = useState(false)
   const [duration, setDuration] = useState(0)
   const [isSeeking, setIsSeeking] = useState(false)
   
@@ -218,7 +220,7 @@ function App() {
 
       setIsModalOpen(false)
 
-      setCurrentView({ type: 'playlist', id: newId, name: name, desc:desc, coverImagePath: coverImagePath }) // TODO: maybe needs to pass image???
+      setCurrentView({ type: 'playlist', id: newId, name: name, desc:desc, coverImagePath: coverImagePath })
       
     } catch (error) {
       console.error("Failed to create playlist:", error)
@@ -408,6 +410,14 @@ function App() {
   const handleSliderMouseDown = () => setIsSeeking(true)
   const handleSliderMouseUp = () => setIsSeeking(false)
 
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value) / 100
+    setVolume(newVolume)
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume
+    }
+  }
+
 const currentAudioSrc = currentTrack
     ? `local://stream?path=${encodeURIComponent(currentTrack.file_path.replace(/\\/g, '/'))}` 
     : ''
@@ -502,13 +512,17 @@ const currentAudioSrc = currentTrack
 
   const queueItems = playbackQueue.toArray()
 
+  const sliderRange = (volume*100 + 5) / (110) * 100;
+
   return (
     <div className="app-container">
       <nav className="sidebar">
         <h2>Library</h2>
         <ul>
           <li onClick={() => setCurrentView({type: 'library'})}>All Songs ({libraryCount})</li>
-          <li onClick={() => setCurrentView({type: 'playlists'})}>Playlists ({playlists.length})</li>
+          <li onClick={() => setCurrentView({type: 'playlists'})}>
+            Playlists ({playlists.length})
+            </li>
           <div className="sidebar-dropdown">
           <button 
             className="dropdown-toggle" 
@@ -521,7 +535,7 @@ const currentAudioSrc = currentTrack
           {isPlaylistsExpanded && (
             <ul className="dropdown-list">
               {playlists.map(pl => (
-                <li 
+                <li className='text-soft'
                   key={pl.id}
                   onClick={() => setCurrentView({ type: 'playlist', id: pl.id, name: pl.name, desc: pl.desc || '', coverImagePath: pl.cover_image_path || null })}
                   onContextMenu={(e: React.MouseEvent<HTMLLIElement>) => {
@@ -554,6 +568,7 @@ const currentAudioSrc = currentTrack
         <QueueSidebar
             isOpen={isQueueOpen} 
             queue={queueItems} 
+            historyQueue={historyQueue.toArray()}
             currentTrack={currentTrack} 
             onClose={() => setIsQueueOpen(false)} 
             
@@ -591,12 +606,35 @@ const currentAudioSrc = currentTrack
           onLoadedMetadata={handleLoadedMetadata}
         />
 
+        <div className='slider-container' style={{position: 'relative'}}>
+          <div className={`slider-popup ${isDraggingVolume ? 'visible' : ''}`} style={{ left: `${sliderRange}%` }}>
+            {Math.trunc(volume*100)}
+          </div>
+          <input 
+            type="range" 
+            className="volume-slider"
+            min="0" 
+            max="100"
+            value={volume*100}
+            onChange={handleVolumeChange}
+            // onMouseDown={handleSliderMouseDown}
+            // onMouseUp={handleSliderMouseUp}
+            onMouseDown={() => setIsDraggingVolume(true)}
+            onMouseUp={() => setIsDraggingVolume(false)}
+          />
+        </div>
+        
+
         <div className='playback-controls'>
-          <button className="control-btn" onClick={playPrev}>⏮</button>
-          <button className="play-btn" onClick={togglePlayPause}>
-            {isPlaying ? '⏸' : '▶'}
+          <button className="control-btn" onClick={playPrev}>
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
           </button>
-          <button className="control-btn" onClick={playNext}>⏭</button></div>
+          <button className="play-btn" onClick={togglePlayPause}>
+            {isPlaying ? <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
+          </button>
+          <button className="control-btn" onClick={playNext}>
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6zm9-12v12h2V6z" color='var(--text-1)'/></svg>
+          </button></div>
         
         <div className='player-img'>
             <span>🎵</span>
@@ -637,7 +675,7 @@ const currentAudioSrc = currentTrack
         </div>
         
           <button 
-            className="btn" 
+            className="btn-primary" 
             onClick={() => setIsQueueOpen(!isQueueOpen)}
             style={{ backgroundColor: isQueueOpen ? 'var(--green-3)' : 'var(--gray-2)' }} // Turns green when open!
           >

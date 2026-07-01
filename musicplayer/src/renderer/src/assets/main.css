@@ -14,6 +14,9 @@ body {
   overflow: hidden;
   background-size: cover;
   user-select: none;
+  text-overflow: ellipsis;
+  /* white-space: nowrap; */
+  flex-grow: 1;
 }
 
 code {
@@ -36,12 +39,8 @@ code {
   display: grid;
   height: 100vh;
   width: 100vw;  
-  
   grid-template-columns: 220px 1fr; 
-  
   grid-template-rows: 70px 1fr; 
-  
-  /* background-color: var(--color-background-mute);  */
   color: var(--white);
   font-family: system-ui, -apple-system, sans-serif;
   overflow: hidden;
@@ -57,7 +56,6 @@ code {
 .topbar {
   grid-column: 1 / 4; 
   grid-row: 1 / 2; 
-
   background-color: var(--color-background-mute);
   display: flex;
   align-items: center;
@@ -81,12 +79,9 @@ code {
 
 .header {
   display: flex;
-  /* flex-direction: row; */
   justify-content: space-between; 
-  align-items: flex-end;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #282828;
-  padding-bottom: 20px;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .p {
@@ -108,7 +103,6 @@ code {
   color: var(--text-1);
 }
 
-/* The header button */
 .dropdown-toggle {
   width: 100%;
   display: flex;
@@ -116,7 +110,7 @@ code {
   align-items: center;
   background: none;
   border: none;
-  color: #b3b3b3; /* Match your sidebar text color */
+  color: var(--text-2);
   font-size: 14px;
   font-weight: bold;
   padding: 8px 0;
@@ -125,7 +119,7 @@ code {
 }
 
 .dropdown-toggle:hover {
-  color: #ffffff;
+  color: var(--text-1);
 }
 
 .dropdown-arrow {
@@ -143,7 +137,7 @@ code {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  color: #b3b3b3;
+  color: var(--text-2);
   cursor: pointer;
   border-radius: 4px;
   font-size: 14px;
@@ -192,27 +186,45 @@ code {
   padding: 0px;
 }
 
-.btn {
-  background: var(--gray-2);
-  border: 1px solid var(--green-3);
-  color: var(--button-alt-text);
+.btn,
+.btn-primary,
+.btn-light {
   padding: 6px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  margin: 10px;
+  margin: 6px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn {
+  background: var(--white);
+  border: 1px solid var(--white);
+  color: var(--green-3);
 }
 
 .btn-primary {
-  background: var(--green-1);
-  border: 1px solid var(--green-1);
+  background: var(--green-2);
+  border: 1px solid var(--green-2);
   color: var(--button-alt-text);
+}
+
+.btn-light {
+  background: none;
+  color: var(--button-alt-text);
+  border: 1px solid var(--white);
 }
 
 .btn:hover {
   background: var(--button-alt-hover-bg);
   border: 1px solid var(--button-alt-hover-border);
   color: var(--button-alt-hover-text);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-primary:hover {
+  /* background: var(--green-3); */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .btn:disabled {
@@ -239,12 +251,60 @@ code {
   color: var(--white);
 }
 
+.tab-select input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  height: 0;
+  width: 0;
+}
+
+.tab-select {
+  display: flex;
+  justify-content: space-evenly;
+  /* border-bottom: 1px solid var(--neutral-background); */
+  padding-bottom: 10px;
+  /* margin-bottom: 8px; */
+  text-align: center;
+}
+
+.tab-select label {
+  font-size: 18px;
+  font-weight: 400;
+  width: 100%;
+  background: none;
+  padding: 0 6px 6px 6px;
+  border-radius: 6px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tab-select label:hover {
+  background-color: var(--color-background-mute);
+}
+
+.tab-select label::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--white);
+  border-radius: 10px;
+  transform: scaleX(0);
+  transition: transform 0.1s ease-out;
+}
+
+.tab-select label:has(input[type="radio"]:checked)::after {
+  transform: scaleX(1);
+}
+
 #root {
   display: block;
 }
 
 .playback-controls {
-  margin-right: 20px;
+  margin: 0px 12px;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -254,33 +314,62 @@ code {
   padding: 2px;
 }
 
-.play-btn {
-  background: none;
-  border: none;
-  color: var(--gray-1);
-  width: 40px;
-  height: 40px;
-  font-size: 16px;
+.play-btn,
+.play-btn-large {
+  color: var(--white);
+  fill: var(--white);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.play-btn:hover {
+.play-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  padding: 0px 0px 2px 0px;;
+}
+
+.play-btn:hover,
+.play-btn-large:hover {
   transform: scale(1.05);
+  color: var(--button-alt-hover-text);
+  fill: var(--button-alt-hover-text);
+}
+
+.play-btn-large {
+  width: 56px;
+  height: 56px;
+  font-size: 28px;
+  background-color: var(--neutral-background);
+  padding: 6px;
+}
+
+.play-btn-large:hover {
+    fill: var(--green-2);
+    color: var(--green-2);
 }
 
 .control-btn {
   background: none;
   border: none;
+  fill: var(--gray-1);
   color: var(--gray-1);
-  font-size: 20px;
+  /* font-size: 20px; */
   cursor: pointer;
+  width: 36px;
+  height: 36px;
+  padding: 0px;
+  margin: 0px;
 }
 
 .control-btn:hover {
-  color: #ffffff;
+  color: var(--button-alt-hover)
 }
 
 .track-item {
@@ -301,12 +390,14 @@ code {
 }
 
 .track-item-metadata {
-  display: flex;
-  flex: auto;
-  justify-content: space-between;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  margin-right: 100px
+  display: grid;
+  grid-template-rows: 100%;
+  grid-template-columns: 8fr 7fr 3fr;
+  width: 50%;
+}
+
+.track-item-metadata > * {
+  text-align: left;
 }
 
 .player-container {
@@ -370,10 +461,43 @@ code {
   margin: 0;
 }
 
-.player-slider {
-  grid-column: 2 / -1;
-  grid-row: 3;
-  width: 100%;
+.slider-container {
+  position: relative;
+}
+
+.slider-popup {
+  position: absolute;
+  top: 40px;
+  transform: translateX(-50%);
+  background: var(--neutral-background);
+  color: var(--text-1);
+  width: 40px;
+  padding: 5px 0px;
+  text-align: center;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.slider-popup::before {
+  content: "";
+  position: absolute;
+  top: -6px; 
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 7px 7px 7px; 
+  border-style: solid;
+  border-color: transparent transparent var(--neutral-background) transparent; 
+}
+
+.slider-popup.visible {
+  opacity: 1;
+}
+
+.player-slider,
+.volume-slider {
   height: 6px;
   appearance: none;
   background: linear-gradient(to right, var(--gray-2) 0%, var(--gray-2) 100%);
@@ -382,7 +506,18 @@ code {
   cursor: pointer;
 }
 
-.player-slider::-webkit-slider-thumb {
+.player-slider {
+  grid-column: 2 / -1;
+  grid-row: 3;
+  width: 100%;
+}
+
+.volume-slider {
+  
+}
+
+.player-slider::-webkit-slider-thumb,
+.volume-slider::-webkit-slider-thumb {
   appearance: none;
   width: 14px;
   height: 14px;
@@ -391,7 +526,8 @@ code {
   cursor: pointer;
 }
 
-.player-slider::-moz-range-thumb {
+.player-slider::-moz-range-thumb,
+.volume-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -419,7 +555,6 @@ code {
   padding-left: 8px;
 }
 
-/* Track right click context menu */
 .context-menu {
   position: fixed;
   width: 200px;
@@ -472,7 +607,6 @@ code {
   text-overflow: ellipsis;
 }
 
-/* Playlist Modal Styling */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -510,15 +644,18 @@ code {
 
 .playlists-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(182px, 182px));
+  justify-content: start;
+  align-content: start;
+  gap: 10px;
 }
 
 .playlist-card {
+  width: 200px;
   padding: 16px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   cursor: pointer;
 }
 
@@ -527,7 +664,7 @@ code {
   height: 150px;
   border-radius: 4px;
   margin-bottom: 8px;
-  background-color: #3e3e3e;
+  background-color: var(--neutral-background-light);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 
@@ -561,22 +698,23 @@ code {
   flex-direction: column;
   gap: 4px;
   padding-right: 4px; 
+  flex: 1;
 }
 
 .queue-item {
   display: flex;
   align-items: center;
-  padding: 8px;
+  padding: 4px 6px;
   border-radius: 4px;
   cursor: pointer;
-  color: #b3b3b3;
+  color: var(--text-2);
   font-size: 14px;
   transition: background-color 0.2s, color 0.2s;
 }
 
 .queue-item:hover {
   background-color: var(--neutral-background);
-  color: #fff;
+  color: var(--text-1);
 }
 
 .queue-item.playing {
@@ -591,7 +729,6 @@ code {
   text-overflow: ellipsis;
   flex-grow: 1;
 }
-
 
 @media (max-width: 720px) {
   .text {

@@ -55,17 +55,20 @@ export default function PlaylistView({
               <span style={{ fontSize: '64px' }}>🎵</span>
             )}
           </div>
-          <div>
-            <h1 style={{ fontSize: '48px', margin: '0 0 8px 0' }}>{playlistName}</h1>
+          <div style={{display: 'flex', flexDirection: 'column', textAlign: 'left'}}>
+            <h1 style={{ fontSize: '48px'}}>{playlistName}</h1>
             <p>{playlistDesc}</p>
-            <span style={{ color: '#b3b3b3', fontSize: '14px', fontWeight: 'bold' }}>
+            <span className='text-soft' style={{ fontWeight: 'bold', textAlign: 'left' }}>
               {tracks.length} {tracks.length === 1 ? 'song' : 'songs'}
             </span>
+            <div style={{marginTop: 'auto', display:'flex', flexDirection: 'row', gap: '2px'}}>
+              <button className='play-btn play-btn-large'>
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <button className="btn" onClick={onEditClick}>Edit Details</button>
+              <button className="btn btn-primary" onClick={onAddSongsClick}>Add Songs</button>
+            </div>
           </div>
-        </div>
-        <div>
-          <button className="btn" style={{ marginRight: '10px' }} onClick={onEditClick}>Edit Details</button>
-          <button className="btn btn-primary" onClick={onAddSongsClick}>Add Songs</button>
         </div>
       </div>
 
