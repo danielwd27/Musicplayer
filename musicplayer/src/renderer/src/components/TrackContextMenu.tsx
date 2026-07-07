@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Track } from '../env'
+import { useEffect, useState } from 'react'
+import { Track, Playlist } from '../env'
 
 export interface TrackContextMenuData {
   x: number
@@ -14,6 +14,8 @@ interface TrackContextMenuProps {
   onClose: () => void
   onPlayNext: (track: Track) => void
   onAddToQueue: (track: Track) => void
+  playlists?: Playlist[]
+  onAddToPlaylist?: (playlistId: number, trackId: number) => void
   onRemoveFromQueue?: (index: number) => void
   onRemoveFromPlaylist?: (trackId: number) => void
   onDeleteFromLibrary?: (trackId: number) => void
@@ -24,10 +26,13 @@ export default function TrackContextMenu({
   onClose, 
   onPlayNext, 
   onAddToQueue, 
+  playlists = [],
+  onAddToPlaylist,
   onRemoveFromQueue,
   onRemoveFromPlaylist,
   onDeleteFromLibrary
 }: TrackContextMenuProps) {
+  const [showPlaylistSubmenu, setShowPlaylistSubmenu] = useState(false)
   
   // Automatically close the menu if the user clicks ANYWHERE else on the screen
   useEffect(() => {
@@ -48,7 +53,7 @@ export default function TrackContextMenu({
   return (
     <div 
       className="context-menu" 
-      style={{ top: safeY, left: safeX }}
+      style={{ top: safeY, left: safeX, overflow: 'visible' }}
       onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => e.preventDefault()}
     >
       <div className="context-menu-item" onClick={() => onPlayNext(menuData.track)}>
@@ -60,8 +65,55 @@ export default function TrackContextMenu({
       
       <div className="context-menu-divider"></div>
       
-      <div className="context-menu-item" onClick={() => console.log("Open Add to Playlist Modal")}>
-        Add to Playlist...
+      <div 
+        className="context-menu-item" 
+        onMouseEnter={() => setShowPlaylistSubmenu(true)}
+        onMouseLeave={() => setShowPlaylistSubmenu(false)}
+        style={{ position: 'relative' }}
+      >
+        Add to Playlist
+        {showPlaylistSubmenu && playlists.length > 0 && (
+          <div 
+            className="context-menu"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: '100%',
+              minWidth: '180px',
+              zIndex: 1000,
+              marginLeft: '2px',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={() => setShowPlaylistSubmenu(true)}
+            onMouseLeave={() => setShowPlaylistSubmenu(false)}
+          >
+            {playlists.map((playlist) => (
+              <div
+                key={playlist.id}
+                className="context-menu-item"
+                onClick={() => {
+                  if (onAddToPlaylist) {
+                    onAddToPlaylist(playlist.id, menuData.track.id)
+                  }
+                  onClose()
+                  setShowPlaylistSubmenu(false)
+                }}
+              >
+                <div className="sidebar-thumb" style = {{backgroundColor:'var(--neutral-background-dark'}}>
+                      {playlist.cover_image_path ? (
+                        <img 
+                          src={`local://stream?path=${encodeURIComponent(playlist.cover_image_path.replace(/\\/g, '/'))}`} 
+                          alt="cover" 
+                        />
+                      ) : (
+                        <span style={{ fontSize: '10px' }}>🎵</span>
+                      )}
+                    </div>
+                <div className='item-title'>{playlist.name}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Only show "Remove" if we right-clicked inside the queue! */}

@@ -32,7 +32,8 @@ export function initializeDatabase() {
       artist TEXT,
       album TEXT,
       duration INTEGER,
-      year INTEGER
+      year INTEGER,
+      album_image_path TEXT
     );
   `)
 
@@ -60,6 +61,7 @@ export function initializeDatabase() {
 
   ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
   ensureColumnExists('tracks', 'year', 'year INTEGER')
+  ensureColumnExists('tracks', 'album_image_path', 'album_image_path TEXT')
   
   console.log("Database initialized at:", dbPath)
 }
@@ -75,13 +77,14 @@ export function insertTrack(
   title?: string,
   artist?: string,
   album?: string,
-  year?: number
+  year?: number,
+  albumImagePath?: string | null
 ) {
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO tracks (file_path, filename, duration, title, artist, album, year) 
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO tracks (file_path, filename, duration, title, artist, album, year, album_image_path) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `)
-  stmt.run(filePath, filename, duration || null, title || null, artist || null, album || null, year || null)
+  stmt.run(filePath, filename, duration || null, title || null, artist || null, album || null, year || null, albumImagePath || null)
 }
 
 export function getAllTracks() {

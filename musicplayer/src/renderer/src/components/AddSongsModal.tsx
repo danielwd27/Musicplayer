@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Track } from '../env'
 
 interface AddSongsModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (selectedTrackIds: number[]) => void
-  library: Track[] // We will pass your cached 'allTracks' here!
+  onImportFiles: () => Promise<number[]>
+  onImportFolder: () => Promise<number[]>
+  library: Track[]
 }
 
-export default function AddSongsModal({ isOpen, onClose, onSave, library }: AddSongsModalProps) {
+export default function AddSongsModal({ isOpen, onClose, onSave, onImportFiles, onImportFolder, library }: AddSongsModalProps) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -33,6 +35,20 @@ export default function AddSongsModal({ isOpen, onClose, onSave, library }: AddS
     onSave(Array.from(selectedIds))
   }
 
+  const handleImportFiles = async () => {
+    const importedIds = await onImportFiles()
+    if (importedIds.length > 0) {
+      setSelectedIds((prev) => new Set([...prev, ...importedIds]))
+    }
+  }
+
+  const handleImportFolder = async () => {
+    const importedIds = await onImportFolder()
+    if (importedIds.length > 0) {
+      setSelectedIds((prev) => new Set([...prev, ...importedIds]))
+    }
+  }
+
   // Filter the list based on the search bar
   const filteredLibrary = library.filter(track => 
     track.filename.toLowerCase().includes(searchQuery.toLowerCase())
@@ -49,9 +65,11 @@ export default function AddSongsModal({ isOpen, onClose, onSave, library }: AddS
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-
-        {/* Scrollable Track List */}
+      
         <div style={{ flexGrow: 1, overflowY: 'auto', marginBottom: '20px', marginTop: '16px', backgroundColor: 'var(--neutral-background-dark)', borderRadius: '8px', padding: '8px' }}>
+          {library.length === 0 ? 
+          <p className='text-soft'>You haven't imported any tracks.</p> : '' 
+          }
           {filteredLibrary.map(track => (
             <div 
               key={track.id} 
@@ -79,6 +97,8 @@ export default function AddSongsModal({ isOpen, onClose, onSave, library }: AddS
 
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={() => { void handleImportFiles() }}>Import Files</button>
+          <button className="btn" onClick={() => { void handleImportFolder() }}>Import Folder</button>
           <button 
             className="btn btn-primary" 
             onClick={handleSave}

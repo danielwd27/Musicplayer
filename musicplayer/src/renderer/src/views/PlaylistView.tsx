@@ -1,12 +1,7 @@
 import React from 'react'
 import { Track } from '../env'
+import { formatDuration, formatPlaylistDuration } from '@renderer/utilities/formatTime'
 
-const formatDuration = (seconds?: number): string => {
-  if (!seconds || isNaN(seconds)) return ''
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
 
 interface PlaylistViewProps {
   playlistId: number
@@ -35,6 +30,8 @@ export default function PlaylistView({
   onTrackContextMenu
 }: PlaylistViewProps) {
   
+  const totalDuration = tracks.reduce((sum, track) => sum + (track.duration || 0), 0)
+  
   return (
     <div>
       {/* --- PLAYLIST HEADER --- */}
@@ -55,11 +52,11 @@ export default function PlaylistView({
               <span style={{ fontSize: '64px' }}>🎵</span>
             )}
           </div>
-          <div style={{display: 'flex', flexDirection: 'column', textAlign: 'left'}}>
+          <div style={{display: 'flex', flexDirection: 'column', textAlign: 'left', width: '100%'}}>
             <h1 style={{ fontSize: '48px'}}>{playlistName}</h1>
             <p>{playlistDesc}</p>
             <span className='text-soft' style={{ fontWeight: 'bold', textAlign: 'left' }}>
-              {tracks.length} {tracks.length === 1 ? 'song' : 'songs'}
+              {tracks.length} {tracks.length === 1 ? 'song' : 'songs'}{tracks.length > 0 && ` • ${formatPlaylistDuration(totalDuration)}`}
             </span>
             <div style={{marginTop: 'auto', display:'flex', flexDirection: 'row', gap: '2px'}}>
               <button className='play-btn play-btn-large'>
@@ -72,9 +69,8 @@ export default function PlaylistView({
         </div>
       </div>
 
-      {/* --- TRACK LIST OR EMPTY STATE --- */}
       {tracks.length === 0 ? (
-        <div style={{ textAlign: 'center', marginTop: '80px', color: '#888' }}>
+        <div className='text-soft' style={{ textAlign: 'center', marginTop: '80px'}}>
           <h2>This playlist is looking a little empty.</h2>
           <p style={{ marginBottom: '24px' }}>Let's find some tracks to add to it.</p>
           <button className="btn btn-primary" onClick={onAddSongsClick}>

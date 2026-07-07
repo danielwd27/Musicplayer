@@ -8,6 +8,46 @@ import icon from '../../resources/icon.png?asset'
 import fs from 'fs/promises'
 import path from 'path'
 import { parseFile } from 'music-metadata'
+import os from 'os'
+import crypto from 'crypto'
+
+// Helper function to extract metadata and save album art
+async function processAudioFile(filePath: string, filename: string): Promise<void> {
+  let duration: number | undefined
+  let title: string | undefined
+  let artist: string | undefined
+  let album: string | undefined
+  let year: number | undefined
+  let albumImagePath: string | null = null
+
+  try {
+    const metadata = await parseFile(filePath)
+    duration = metadata.format.duration
+    title = metadata.common.title
+    artist = metadata.common.albumartist
+    album = metadata.common.album
+    year = metadata.common.year
+
+    // Extract and save album art if available
+    if (metadata.common.picture && metadata.common.picture.length > 0) {
+      const picture = metadata.common.picture[0]
+      const tempDir = os.tmpdir()
+      const fileName = `album-${crypto.randomBytes(8).toString('hex')}.${picture.format.split('/')[1] || 'jpg'}`
+      albumImagePath = join(tempDir, fileName)
+      
+      try {
+        await fs.writeFile(albumImagePath, picture.data)
+      } catch (err) {
+        console.error(`Failed to save album art for ${filename}:`, err)
+        albumImagePath = null
+      }
+    }
+  } catch (err) {
+    console.error(`Failed to read metadata for ${filePath}:`, err)
+  }
+
+  insertTrack(filePath, filename, duration, title, artist, album, year, albumImagePath)
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -138,6 +178,29 @@ app.whenReady().then(() => {
     return filePaths[0] // Return the selected file path
   })
 
+  ipcMain.handle('dialog:openFiles', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Audio Files', extensions: ['mp3', 'flac', 'wav', 'm4a', 'ogg', 'aac'] }
+      ]
+    })
+
+    if (canceled || filePaths.length === 0) return []
+
+    const supportedExtensions = ['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.aac']
+
+    for (const filePath of filePaths) {
+      const ext = path.extname(filePath).toLowerCase()
+      if (!supportedExtensions.includes(ext)) continue
+
+      const filename = path.basename(filePath)
+      await processAudioFile(filePath, filename)
+    }
+
+    return getAllTracks()
+  })
+
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (canceled || filePaths.length === 0) return []
@@ -153,30 +216,10 @@ app.whenReady().then(() => {
         if (supportedExtensions.includes(ext)) {
           const fullPath = path.join(folderPath, file)
           const filename = path.basename(file)
-          
-          // Extract metadata
-          let duration: number | undefined
-          let title: string | undefined
-          let artist: string | undefined
-          let album: string | undefined
-          let year: number | undefined
-          
-          try {
-            const metadata = await parseFile(fullPath)
-            duration = metadata.format.duration
-            title = metadata.common.title
-            artist = metadata.common.albumartist
-            album = metadata.common.album
-            year = metadata.common.year
-          } catch (err) {
-            console.error(`Failed to read metadata for ${fullPath}:`, err)
-          }
-          
-          insertTrack(fullPath, filename, duration, title, artist, album, year)
+          await processAudioFile(fullPath, filename)
         }
       }
 
-      // Return the newly updated database library
       return getAllTracks() 
     } catch (error) {
       console.error("Failed to read directory:", error)
@@ -189,8 +232,27 @@ app.whenReady().then(() => {
     {
       label: 'File',
       submenu: [
+        { label: 'New Playlist',
+          accelerator: 'CmdOrCtrl+N',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('create-playlist')
+            }
+          }
+         },
         {
-          label: 'Scan Music Folder...',
+          label: 'Import File',
+          accelerator: 'CmdOrCtrl+I',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('import-file')
+            }
+          }
+        },
+        {
+          label: 'Import Folder',
           accelerator: 'CmdOrCtrl+O', 
           click: async () => {
             const mainWindow = BrowserWindow.getFocusedWindow()
@@ -206,9 +268,38 @@ app.whenReady().then(() => {
     {
       label: 'Playback',
       submenu: [
-        { label: 'Play/Pause', accelerator: 'Space' },
-        { label: 'Next Track', accelerator: 'CmdOrCtrl+Right' },
-        { label: 'Previous Track', accelerator: 'CmdOrCtrl+Left' }
+        { label: 'Play/Pause', accelerator: 'Space',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('play-pause')
+            }
+          }
+         },
+        { label: 'Next Track', accelerator: 'CmdOrCtrl+Right',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('next-track')
+            }
+          }
+         },
+        { label: 'Previous Track', accelerator: 'CmdOrCtrl+Left',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('prev-track')
+            }
+          }
+         },
+         { label: 'Mute/Unmute', accelerator: 'CmdOrCtrl+M',
+          click: async () => {
+            const mainWindow = BrowserWindow.getFocusedWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('toggle-mute')
+            }
+          }
+         }
       ]
     },
     {

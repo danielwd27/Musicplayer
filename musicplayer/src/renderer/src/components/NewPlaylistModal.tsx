@@ -54,7 +54,7 @@ export default function NewPlaylistModal({ isOpen, onClose, onCreate }: NewPlayl
                 alt="Preview" 
               />
             ) : (
-              <span style={{ fontSize: '32px' }}>📷</span>
+              <span className='text-soft' style={{ fontSize: '14px', textAlign:'center' }}><div style={{fontSize:'28px'}}>📷</div> Upload Image</span>
             )}
           </div>
 

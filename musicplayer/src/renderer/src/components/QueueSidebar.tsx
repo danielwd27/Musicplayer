@@ -1,30 +1,33 @@
 import React, {useState} from 'react'
 import { Track } from '../env'
-
-const formatDuration = (seconds?: number): string => {
-  if (!seconds || isNaN(seconds)) return ''
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
+import { formatDuration } from '@renderer/utilities/formatTime'
 
 interface QueueSidebarProps {
   isOpen: boolean
   queue: Track[]
   historyQueue: Track[]
+  isShuffled: boolean
+  shuffledQueue: Track[]
   currentTrack: Track | null
   onClose: () => void
   onPlayTrack: (index: number) => void
-  onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void 
+  onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
+  onClear: (target: 'queue' | 'history') => void
 }
 
-export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack, onPlayTrack, onContextMenu: onTrackContextMenu }: QueueSidebarProps) {
+export default function QueueSidebar({ isOpen, queue, historyQueue, isShuffled, shuffledQueue, currentTrack, onClose, onPlayTrack, onContextMenu: onTrackContextMenu, onClear }: QueueSidebarProps) {
 
   const[activeTab, setActiveTab] = useState<'queue' | 'history'>('queue')
-
+  let list: Track[] = queue;
   if (!isOpen) return null
+  if (activeTab === 'queue' && !isShuffled) {
+    list = queue;
+  } else if (activeTab === 'queue' && isShuffled) {
+    list = shuffledQueue;
+  } else {
+    list = historyQueue;
+  }
 
-  const list = activeTab === 'queue' ? queue : historyQueue;
   const emptyText = activeTab === 'queue' ? 'Your queue is empty.' : 'No history available.';
 
   return (
@@ -45,7 +48,7 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack
           </label>
         </div>
         
-        {queue.length === 0 ? (
+        {list.length === 0 ? (
           <p>{emptyText}</p>
         ) : (
           <div className="queue-list">
@@ -54,7 +57,9 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack
                 key={`${track.id}-${i}`}
                 className={`queue-item ${currentTrack?.id === track.id ? 'playing' : ''}`}
                 onDoubleClick={() => {
-                  onPlayTrack(i)
+                  if (activeTab === 'queue') {
+                    onPlayTrack(i)
+                  }
                 }}
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, i)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -72,11 +77,18 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack
                 <span className='text-soft' style={{marginLeft: '10px', overflow: 'clip'}}>
                   {formatDuration(track.duration)}
                 </span>
+                {/* <hr style={{alignSelf: 'end', width: '100%', zIndex: '500'}}/> */}
               </div>
             ))}
           </div>
         )}
-        <button className='btn-light' style={{ marginTop: 'auto', border: '0px' }}>Clear</button>
+        <button
+          className='btn-light'
+          style={{ marginTop: 'auto' }}
+          onClick={() => onClear(activeTab)}
+        >
+          Clear
+        </button>
       </div>
     </>
   )
