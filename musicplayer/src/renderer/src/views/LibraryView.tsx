@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Track } from '../env'
-import { formatDuration } from '@renderer/utilities/formatTime'
+import { formatDuration } from '@renderer/utilities/formatting'
 
 // Define the data this page needs to do its job
 interface LibraryViewProps {

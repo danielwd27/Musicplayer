@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOp
 import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { initializeDatabase, insertTrack, getAllTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
+import { initializeDatabase, insertTrack, getAllTracks, getAllAlbums, getAlbumTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
         deletePlaylist, removeTrackFromPlaylist, deleteTrack } from './database'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs/promises'
@@ -16,15 +16,25 @@ async function processAudioFile(filePath: string, filename: string): Promise<voi
   let duration: number | undefined
   let title: string | undefined
   let artist: string | undefined
+  let album_artist: string | undefined
   let album: string | undefined
   let year: number | undefined
+  let genre: string | undefined
+  let bit_rate: number | undefined
+  let track_num: number | undefined
+  let disc_num: number | undefined
   let albumImagePath: string | null = null
 
   try {
     const metadata = await parseFile(filePath)
     duration = metadata.format.duration
     title = metadata.common.title
-    artist = metadata.common.albumartist
+    artist = metadata.common.artist
+    album_artist = metadata.common.albumartist
+    genre = metadata.common.genre?.join()
+    bit_rate = metadata.format.bitrate
+    track_num = metadata.common.track.no ?? undefined
+    disc_num = metadata.common.disk.no ?? undefined
     album = metadata.common.album
     year = metadata.common.year
 
@@ -46,7 +56,21 @@ async function processAudioFile(filePath: string, filename: string): Promise<voi
     console.error(`Failed to read metadata for ${filePath}:`, err)
   }
 
-  insertTrack(filePath, filename, duration, title, artist, album, year, albumImagePath)
+  insertTrack(
+    filePath,
+    filename,
+    duration,
+    title,
+    artist,
+    album,
+    year,
+    albumImagePath,
+    album_artist,
+    genre,
+    bit_rate,
+    track_num,
+    disc_num
+  )
 }
 
 function createWindow(): void {
@@ -140,6 +164,14 @@ app.whenReady().then(() => {
 
   ipcMain.handle('db:getLibrary', () => {
     return getAllTracks()
+  })
+
+  ipcMain.handle('db:getAlbums', () => {
+    return getAllAlbums()
+  })
+
+  ipcMain.handle('db:getAlbumTracks', (_, albumId: number) => {
+    return getAlbumTracks(albumId)
   })
 
   ipcMain.handle('db:createPlaylist', (_, name: string, desc: string, coverImagePath: string | null) => {
@@ -268,7 +300,7 @@ app.whenReady().then(() => {
     {
       label: 'Playback',
       submenu: [
-        { label: 'Play/Pause', accelerator: 'Space',
+        { label: 'Play/Pause', accelerator: 'MediaPlayPause',
           click: async () => {
             const mainWindow = BrowserWindow.getFocusedWindow()
             if (mainWindow) {

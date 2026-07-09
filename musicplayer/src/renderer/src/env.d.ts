@@ -6,9 +6,18 @@ export interface Track {
   filename: string;
   title?: string;
   artist?: string;
+  album_artist?: string;
   album?: string;
-  duration?: number;
+  artist_id?: number;
+  album_id?: number;
+  duration: number;
   year?: number;
+  genre?: string;
+  bit_rate?: string;
+  num_listens: number;
+  is_favorite: boolean;
+  track_num?: number;
+  disc_num?: number;
   album_image_path?: string;
 }
 
@@ -22,13 +31,14 @@ export interface Playlist {
 
 export interface Album {
   id: number;
-  // file_path: string;
-  // filename: string;
-  name?: string;
-  artist?: string;
-  duration?: number;
+  title: string;
+  album_artist_id?: number;
+  album_artist?: string;
   year?: number;
-  album_image_path?: string;
+  genre?: string;
+  cover_image_path?: string;
+  track_count?: number;
+  total_duration?: number;
 }
 
 export interface Artist {
@@ -43,6 +53,8 @@ declare global {
       selectFolder: () => Promise<Track[]>;
       selectFiles: () => Promise<Track[]>;
       getLibrary: () => Promise<Track[]>;
+      getAlbums: () => Promise<Album[]>;
+      getAlbumTracks: (id: number) => Promise<Track[]>;
       getPlaylists: () => Promise<Playlist[]>;
       getPlaylistTracks: (id: number) => Promise<Track[]>;
       onScanFolder: (callback: (event: any) => void) => void
@@ -52,12 +64,12 @@ declare global {
       onNextTrack: (callback: (event: any) => void) => void
       onPrevTrack: (callback: (event: any) => void) => void
       onToggleMute: (callback: (event: any) => void) => void
-      createPlaylist: (name: string, desc: string, coverImagePath: string | null) => Promise<number>;
+      createPlaylist: (name: string, desc: string, coverImagePath: string | null) => id<number>;
       selectImage: () => Promise<string | null>;
-      addTracksToPlaylist: (playlistId: number, trackIds: number[]) => Promise<boolean>;
+      addTracksToPlaylist: (id: number, trackIds: number[]) => Promise<boolean>;
       updatePlaylist: (id: number, name: string, desc: string, coverImagePath: string | null) => Promise<boolean>;
       deletePlaylist: (id: number) => Promise<boolean>;
-      removeTrackFromPlaylist: (playlistId: number, trackId: number) => Promise<boolean>;
+      removeTrackFromPlaylist: (id: number, trackId: number) => Promise<boolean>;
       deleteTrack: (trackId: number) => Promise<boolean>;
     }
   }

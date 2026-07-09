@@ -49,6 +49,8 @@ code {
   grid-row: 2 / 3;
   background-color: var(--color-background-mute);
   padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
@@ -68,7 +70,7 @@ code {
   background-color: var(--color-background);
   padding: 20px;
   overflow-y: auto;
-  border-radius: 12px;
+  border-radius: 24px;
   box-shadow: 0 12px 24px rgba(0,0,0,0.5);
   margin-right: 16px;
   margin-top: 6px;
@@ -130,6 +132,15 @@ code {
 .sidebar svg {
   width: 36px;
   height: 36px;
+}
+
+.info-container {
+  margin-top: auto;
+  background-color: var(--color-background);
+  border-radius: 24px;
+  padding: 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+  width: 100%;
 }
 
 .dropdown-toggle {
@@ -204,7 +215,7 @@ code {
   background-color: var(--color-background);
   padding: 12px;
   overflow-y: auto;
-  border-radius: 12px;
+  border-radius: 24px;
   box-shadow: 0 12px 24px rgba(0,0,0,0.5);
   margin-right: 16px;
   margin-top: 6px;
@@ -253,7 +264,6 @@ code {
 }
 
 .btn-primary:hover {
-  /* background: var(--green-3); */
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -291,9 +301,7 @@ code {
 .tab-select {
   display: flex;
   justify-content: space-evenly;
-  /* border-bottom: 1px solid var(--neutral-background); */
   padding-bottom: 10px;
-  /* margin-bottom: 8px; */
   text-align: center;
 }
 
@@ -392,7 +400,6 @@ code {
   color: var(--gray-1);
   stroke: var(--gray-1);
   stroke-width: 1.5;
-  /* font-size: 20px; */
   cursor: pointer;
   width: 36px;
   height: 36px;
@@ -411,6 +418,14 @@ code {
   align-items: center;
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
+}
+
+.item-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  color: var(--text-1);
 }
 
 .track-item:hover {
@@ -477,8 +492,15 @@ code {
   height: 50px;
   border-radius: 4px;
   margin: 0;
-  object-fit: cover;
+  overflow: hidden;
   background-color: var(--neutral-background);
+}
+
+.player-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .shuffle-btn {
@@ -656,7 +678,6 @@ code {
 .text-soft {
   font-size: 14px;
   color: var(--text-2);
-  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -680,7 +701,7 @@ code {
   justify-content: top;
   background-color: var(--neutral-background);
   padding: 24px;
-  border-radius: 8px;
+  border-radius: 18px;
   width: 450px;
   height: 400px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -714,6 +735,25 @@ code {
   cursor: pointer;
 }
 
+.albums-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 18px;
+}
+
+.album-card {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.album-card:hover {
+  background-color: var(--neutral-background);
+  transform: translateY(-2px);
+}
+
 .playlist-image {
   width: 150px;
   height: 150px;
@@ -721,30 +761,27 @@ code {
   margin-bottom: 8px;
   background-color: var(--neutral-background-light);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  stroke-color: var(--white);
+  fill: var(--white);
 }
 
-/* Queue Popover styling */
-.queue-popover {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 320px;
-  max-height: 400px;
-  background-color: var(--neutral-background);
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.8);
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  border: 1px solid var(--neutral-background-light);
+.playlist-image.album-art {
+  width: 100%;
+  aspect-ratio: 1;
+  height: auto;
 }
 
-.queue-popover h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  color: var(--text-1);
+.playlist-image.album-art-large {
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+}
+
+.album-art img,
+.album-art-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .queue-list {
@@ -777,14 +814,6 @@ code {
   font-weight: bold;
   background-color: rgba(29, 185, 84, 0.1);
 } */
-
-.item-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1;
-  color: var(--text-1);
-}
 
 @media (max-width: 720px) {
   .text {

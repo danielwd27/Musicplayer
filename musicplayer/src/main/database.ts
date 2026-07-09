@@ -22,6 +22,30 @@ function ensureColumnExists(tableName: string, columnName: string, columnDefinit
 }
 
 export function initializeDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS artists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      sort_name TEXT,
+      image_path TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS albums (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      album_artist_id INTEGER,
+      year INTEGER,
+      genre TEXT,
+      cover_image_path TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(title, album_artist_id),
+      FOREIGN KEY (album_artist_id) REFERENCES artists(id) ON DELETE SET NULL
+    );
+  `)
+
   // 1. Create the Tracks table
   db.exec(`
     CREATE TABLE IF NOT EXISTS tracks (
@@ -30,10 +54,21 @@ export function initializeDatabase() {
       filename TEXT NOT NULL,
       title TEXT,
       artist TEXT,
+      album_artist TEXT,
       album TEXT,
+      artist_id INTEGER,
+      album_id INTEGER,
       duration INTEGER,
       year INTEGER,
-      album_image_path TEXT
+      genre TEXT,
+      bit_rate INTEGER,
+      num_listens INTEGER DEFAULT 0,
+      is_favorite INTEGER DEFAULT 0,
+      track_num INTEGER,
+      disc_num INTEGER,
+      album_image_path TEXT,
+      FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE SET NULL,
+      FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
     );
   `)
 
@@ -61,7 +96,25 @@ export function initializeDatabase() {
 
   ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
   ensureColumnExists('tracks', 'year', 'year INTEGER')
+  ensureColumnExists('tracks', 'album_artist', 'album_artist TEXT')
+  ensureColumnExists('tracks', 'artist_id', 'artist_id INTEGER REFERENCES artists(id) ON DELETE SET NULL')
+  ensureColumnExists('tracks', 'album_id', 'album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL')
+  ensureColumnExists('tracks', 'genre', 'genre TEXT')
+  ensureColumnExists('tracks', 'bit_rate', 'bit_rate INTEGER')
+  ensureColumnExists('tracks', 'num_listens', 'num_listens INTEGER DEFAULT 0')
+  ensureColumnExists('tracks', 'is_favorite', 'is_favorite INTEGER DEFAULT 0')
+  ensureColumnExists('tracks', 'track_num', 'track_num INTEGER')
+  ensureColumnExists('tracks', 'disc_num', 'disc_num INTEGER')
   ensureColumnExists('tracks', 'album_image_path', 'album_image_path TEXT')
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_tracks_artist_id ON tracks(artist_id);
+    CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id);
+    CREATE INDEX IF NOT EXISTS idx_albums_album_artist_id ON albums(album_artist_id);
+    CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track_id ON playlist_tracks(track_id);
+  `)
+
+  backfillTrackAlbumRelations()
   
   console.log("Database initialized at:", dbPath)
 }
@@ -69,6 +122,65 @@ export function initializeDatabase() {
 export default db
 
 // --- LIBRARY FUNCTIONS ---
+
+const normalizeMusicName = (value: string | undefined | null, fallback: string): string => {
+  const normalized = value?.trim()
+  return normalized || fallback
+}
+
+export function findOrCreateArtist(name: string | undefined | null): number {
+  const artistName = normalizeMusicName(name, 'Unknown Artist')
+
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO artists (name, sort_name)
+    VALUES (?, ?)
+  `)
+  insertStmt.run(artistName, artistName)
+
+  const selectStmt = db.prepare('SELECT id FROM artists WHERE name = ?')
+  const artist = selectStmt.get(artistName) as { id: number } | undefined
+
+  if (!artist) {
+    throw new Error(`Failed to find or create artist: ${artistName}`)
+  }
+
+  return artist.id
+}
+
+export function findOrCreateAlbum(
+  title: string | undefined | null,
+  albumArtistId: number,
+  year?: number,
+  genre?: string,
+  coverImagePath?: string | null
+): number {
+  const albumTitle = normalizeMusicName(title, 'Unknown Album')
+
+  const insertStmt = db.prepare(`
+    INSERT OR IGNORE INTO albums (title, album_artist_id, year, genre, cover_image_path)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+  insertStmt.run(albumTitle, albumArtistId, year ?? null, genre || null, coverImagePath || null)
+
+  const updateStmt = db.prepare(`
+    UPDATE albums
+    SET
+      year = COALESCE(?, year),
+      genre = COALESCE(?, genre),
+      cover_image_path = COALESCE(?, cover_image_path)
+    WHERE title = ? AND album_artist_id = ?
+  `)
+  updateStmt.run(year ?? null, genre || null, coverImagePath || null, albumTitle, albumArtistId)
+
+  const selectStmt = db.prepare('SELECT id FROM albums WHERE title = ? AND album_artist_id = ?')
+  const album = selectStmt.get(albumTitle, albumArtistId) as { id: number } | undefined
+
+  if (!album) {
+    throw new Error(`Failed to find or create album: ${albumTitle}`)
+  }
+
+  return album.id
+}
 
 export function insertTrack(
   filePath: string,
@@ -78,18 +190,176 @@ export function insertTrack(
   artist?: string,
   album?: string,
   year?: number,
-  albumImagePath?: string | null
+  albumImagePath?: string | null,
+  albumArtist?: string,
+  genre?: string,
+  bitrate?: number,
+  trackNum?: number,
+  discNum?: number
 ) {
+  const artistName = normalizeMusicName(artist, 'Unknown Artist')
+  const albumArtistName = normalizeMusicName(albumArtist || artistName, 'Unknown Artist')
+  const albumTitle = normalizeMusicName(album, 'Unknown Album')
+  const artistId = findOrCreateArtist(artistName)
+  const albumArtistId = findOrCreateArtist(albumArtistName)
+  const albumId = findOrCreateAlbum(albumTitle, albumArtistId, year, genre, albumImagePath)
+
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO tracks (file_path, filename, duration, title, artist, album, year, album_image_path) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tracks (
+      file_path,
+      filename,
+      duration,
+      title,
+      artist,
+      album_artist,
+      album,
+      artist_id,
+      album_id,
+      year,
+      genre,
+      bit_rate,
+      track_num,
+      disc_num,
+      album_image_path
+    ) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(file_path) DO UPDATE SET
+      filename = excluded.filename,
+      duration = excluded.duration,
+      title = excluded.title,
+      artist = excluded.artist,
+      album_artist = excluded.album_artist,
+      album = excluded.album,
+      artist_id = excluded.artist_id,
+      album_id = excluded.album_id,
+      year = excluded.year,
+      genre = excluded.genre,
+      bit_rate = excluded.bit_rate,
+      track_num = excluded.track_num,
+      disc_num = excluded.disc_num,
+      album_image_path = excluded.album_image_path
   `)
-  stmt.run(filePath, filename, duration || null, title || null, artist || null, album || null, year || null, albumImagePath || null)
+  stmt.run(
+    filePath,
+    filename,
+    duration ?? null,
+    title || null,
+    artistName,
+    albumArtistName,
+    albumTitle,
+    artistId,
+    albumId,
+    year ?? null,
+    genre || null,
+    bitrate ?? null,
+    trackNum ?? null,
+    discNum ?? null,
+    albumImagePath || null
+  )
+}
+
+function backfillTrackAlbumRelations() {
+  const tracks = db.prepare(`
+    SELECT
+      id,
+      artist,
+      album_artist,
+      album,
+      year,
+      genre,
+      album_image_path
+    FROM tracks
+    WHERE artist_id IS NULL OR album_id IS NULL
+  `).all() as Array<{
+    id: number
+    artist?: string | null
+    album_artist?: string | null
+    album?: string | null
+    year?: number | null
+    genre?: string | null
+    album_image_path?: string | null
+  }>
+
+  if (tracks.length === 0) return
+
+  const updateStmt = db.prepare(`
+    UPDATE tracks
+    SET
+      artist = ?,
+      album_artist = ?,
+      album = ?,
+      artist_id = ?,
+      album_id = ?
+    WHERE id = ?
+  `)
+
+  const backfillMany = db.transaction(() => {
+    for (const track of tracks) {
+      const artistName = normalizeMusicName(track.artist, 'Unknown Artist')
+      const albumArtistName = normalizeMusicName(track.album_artist || artistName, 'Unknown Artist')
+      const albumTitle = normalizeMusicName(track.album, 'Unknown Album')
+      const artistId = findOrCreateArtist(artistName)
+      const albumArtistId = findOrCreateArtist(albumArtistName)
+      const albumId = findOrCreateAlbum(
+        albumTitle,
+        albumArtistId,
+        track.year ?? undefined,
+        track.genre ?? undefined,
+        track.album_image_path ?? null
+      )
+
+      updateStmt.run(artistName, albumArtistName, albumTitle, artistId, albumId, track.id)
+    }
+  })
+
+  backfillMany()
+  console.log(`Backfilled album relationships for ${tracks.length} tracks`)
 }
 
 export function getAllTracks() {
   const stmt = db.prepare('SELECT * FROM tracks ORDER BY filename ASC')
   return stmt.all()
+}
+
+// --- ALBUM FUNCTIONS ---
+
+export function getAllAlbums() {
+  const stmt = db.prepare(`
+    SELECT
+      albums.id,
+      albums.title,
+      albums.album_artist_id,
+      artists.name AS album_artist,
+      albums.year,
+      albums.genre,
+      albums.cover_image_path,
+      COUNT(tracks.id) AS track_count,
+      COALESCE(SUM(tracks.duration), 0) AS total_duration
+    FROM albums
+    LEFT JOIN artists ON artists.id = albums.album_artist_id
+    LEFT JOIN tracks ON tracks.album_id = albums.id
+    GROUP BY albums.id
+    ORDER BY artists.name ASC, albums.year ASC, albums.title ASC
+  `)
+  return stmt.all()
+}
+
+export function getAlbumTracks(albumId: number) {
+  const stmt = db.prepare(`
+    SELECT
+      tracks.*,
+      track_artists.name AS artist,
+      albums.title AS album,
+      album_artists.name AS album_artist,
+      albums.cover_image_path AS album_image_path
+    FROM tracks
+    LEFT JOIN artists AS track_artists ON track_artists.id = tracks.artist_id
+    LEFT JOIN albums ON albums.id = tracks.album_id
+    LEFT JOIN artists AS album_artists ON album_artists.id = albums.album_artist_id
+    WHERE tracks.album_id = ?
+    ORDER BY COALESCE(tracks.disc_num, 1) ASC, COALESCE(tracks.track_num, 0) ASC, tracks.filename ASC
+  `)
+  return stmt.all(albumId)
 }
 
 // --- PLAYLIST FUNCTIONS ---

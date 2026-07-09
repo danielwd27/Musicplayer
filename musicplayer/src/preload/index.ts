@@ -34,6 +34,8 @@ const api = {
     return ipcRenderer.on('toggle-mute', callback)
   },
   getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
+  getAlbums: () => ipcRenderer.invoke('db:getAlbums'),
+  getAlbumTracks: (id: number) => ipcRenderer.invoke('db:getAlbumTracks', id),
   getPlaylists: () => ipcRenderer.invoke('db:getPlaylists'),
   getPlaylistTracks: (id: number) => ipcRenderer.invoke('db:getPlaylistTracks', id),
   createPlaylist: (name: string, desc: string, coverImagePath: string | null) => ipcRenderer.invoke('db:createPlaylist', name, desc, coverImagePath),

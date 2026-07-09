@@ -40,6 +40,10 @@ export default function PlaylistContextMenu({
       <div className="context-menu-item" onClick={() => { onPlay(menuData.playlist); onClose(); }}>
         Play Next
       </div>
+
+      <div className="context-menu-item">
+        Go to Playlist
+      </div>
       
       <div className="context-menu-divider"></div>
       

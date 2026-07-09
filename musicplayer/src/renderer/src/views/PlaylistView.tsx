@@ -1,30 +1,28 @@
 import React from 'react'
 import { Track } from '../env'
-import { formatDuration, formatPlaylistDuration } from '@renderer/utilities/formatTime'
+import { formatDuration, formatPlaylistDuration } from '@renderer/utilities/formatting'
+import { Playlist } from '../env'
 
 
 interface PlaylistViewProps {
-  playlistId: number
-  playlistName: string
-  playlistDesc?: string
-  coverImagePath?: string | null
+  playlist: Playlist
   tracks: Track[]
   currentTrack: Track | null
   isPlaying: boolean
   playTrack: (track: Track) => void
+  onPlayTrackWithQueue?: (track: Track, index: number) => void
   onAddSongsClick: () => void
   onEditClick: () => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
 }
 
 export default function PlaylistView({ 
-  playlistName, 
-  playlistDesc,
-  coverImagePath,
+  playlist, 
   tracks, 
   currentTrack, 
   isPlaying, 
   playTrack,
+  onPlayTrackWithQueue,
   onAddSongsClick,
   onEditClick,
   onTrackContextMenu
@@ -42,19 +40,19 @@ export default function PlaylistView({
           justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
           }}>
-            {coverImagePath ? (
+            {playlist.cover_image_path ? (
               <img 
-                src={`local://stream?path=${encodeURIComponent(coverImagePath.replace(/\\/g, '/'))}`} 
+                src={`local://stream?path=${encodeURIComponent(playlist.cover_image_path.replace(/\\/g, '/'))}`} 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                alt={playlistName} 
+                alt={playlist.name} 
               />
             ) : (
               <span style={{ fontSize: '64px' }}>🎵</span>
             )}
           </div>
           <div style={{display: 'flex', flexDirection: 'column', textAlign: 'left', width: '100%'}}>
-            <h1 style={{ fontSize: '48px'}}>{playlistName}</h1>
-            <p>{playlistDesc}</p>
+            <h1 style={{ fontSize: '48px'}}>{playlist.name}</h1>
+            <p>{playlist.desc}</p>
             <span className='text-soft' style={{ fontWeight: 'bold', textAlign: 'left' }}>
               {tracks.length} {tracks.length === 1 ? 'song' : 'songs'}{tracks.length > 0 && ` • ${formatPlaylistDuration(totalDuration)}`}
             </span>
@@ -83,7 +81,7 @@ export default function PlaylistView({
             <div 
               key={`${track.id}-${index}`} 
               className={`track-item ${currentTrack?.id === track.id ? 'active' : ''}`}
-              onDoubleClick={() => playTrack(track)}
+              onDoubleClick={() => onPlayTrackWithQueue ? onPlayTrackWithQueue(track, index) : playTrack(track)}
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >

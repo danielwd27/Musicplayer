@@ -4,6 +4,8 @@ interface API {
   selectFolder: () => Promise<any[]>
   selectFiles: () => Promise<any[]>
   getLibrary: () => Promise<any[]>
+  getAlbums: () => Promise<any[]>
+  getAlbumTracks: (id: number) => Promise<any[]>
   onScanFolder: (callback: (event: any) => void) => void
   onCreatePlaylist: (callback: (event: any) => void) => void
   onImportFile: (callback: (event: any) => void) => void

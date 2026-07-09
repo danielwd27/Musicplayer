@@ -49,7 +49,6 @@ export default function EditPlaylistModal({
             onClick={handleSelectImage}
             className="playlist-image"
             style={{
-              backgroundColor: '#3e3e3e',
               borderRadius: '8px', display: 'flex', alignItems: 'center', 
               justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0
             }}

@@ -1,6 +1,6 @@
 import React, {useState} from 'react'
 import { Track } from '../env'
-import { formatDuration } from '@renderer/utilities/formatTime'
+import { formatDuration } from '@renderer/utilities/formatting'
 
 interface QueueSidebarProps {
   isOpen: boolean

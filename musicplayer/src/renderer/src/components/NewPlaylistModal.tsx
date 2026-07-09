@@ -37,12 +37,12 @@ export default function NewPlaylistModal({ isOpen, onClose, onCreate }: NewPlayl
       <div className="modal-content">
         <h2 style={{ marginBottom: '8px' }}>Create New Playlist</h2>
         
-        {/* IMAGE PREVIEW & PICKER */}
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
           <div 
             onClick={handleSelectImage}
+            className='playlist-image'
             style={{
-              width: '120px', height: '120px', backgroundColor: '#3e3e3e',
+              width: '120px', height: '120px', 
               borderRadius: '8px', display: 'flex', alignItems: 'center', 
               justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0
             }}
@@ -54,7 +54,11 @@ export default function NewPlaylistModal({ isOpen, onClose, onCreate }: NewPlayl
                 alt="Preview" 
               />
             ) : (
-              <span className='text-soft' style={{ fontSize: '14px', textAlign:'center' }}><div style={{fontSize:'28px'}}>📷</div> Upload Image</span>
+              <span className='text-soft' style={{ fontSize: '14px', textAlign:'center' }}>
+                <div style={{fontSize:'28px'}}>
+                <svg viewBox="0 0 24 24" style={{stroke: 'var(--white)'}}><g fill="none" fill-rule="evenodd"><path d="M0 0h24v24H0z"/><rect stroke-width="1.5" stroke-linecap="round" x="4" y="4" width="16" height="16" rx="2"/><circle stroke-width="2" stroke-linecap="round" cx="8.5" cy="8.5" r="1"/><path d="m5 19 5.249-6.123a1 1 0 0 1 1.511-.008L18 20m-4.5-5.5 2.297-2.68a1 1 0 0 1 1.467-.056L20 14.5" stroke-width="1.5" stroke-linecap="round"/></g></svg>
+                </div> Upload Image
+              </span>
             )}
           </div>
 

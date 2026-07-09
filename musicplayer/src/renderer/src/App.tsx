@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Track, Playlist } from './env'
+import { Track, Playlist, Album } from './env'
 
 import LibraryView from './views/LibraryView'
 import PlaylistsView from './views/PlaylistsView'
@@ -12,7 +12,8 @@ import EditPlaylistModal from './components/EditPlaylistModal'
 import QueueSidebar from './components/QueueSidebar'
 import TrackContextMenu, { TrackContextMenuData } from './components/TrackContextMenu'
 import PlaylistContextMenu, { PlaylistMenuData } from './components/PlaylistContextMenu'
-import { formatDuration } from './utilities/formatTime'
+import AlbumContextMenu, { AlbumMenuData } from './components/AlbumContextMenu'
+import { formatDuration, formatBitrate } from './utilities/formatting'
 import SearchPopup from './components/SearchPopup'
 
 type QueueNode<T> = {
@@ -130,9 +131,10 @@ class FIFOQueue<T> {
 type ViewState = 
   | { type: 'library' }
   | { type: 'albums'}
+  | { type: 'album', album: Album}
   | { type: 'artists'}
   | { type: 'playlists'}
-  | { type: 'playlist', id: number, name: string, desc: string, coverImagePath?: string | null }
+  | { type: 'playlist', playlist: Playlist}
 
 function App() {
   const [tracks, setTracks] = useState<Track[]>([]) // tracks currently in view
@@ -143,11 +145,13 @@ function App() {
   const [shuffledQueue, setShuffledQueue] = useState<Track[]>([])
   const [historyQueue, setHistoryQueue] = useState<FIFOQueue<Track>>(new FIFOQueue<Track>())
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [allTracks, setAllTracks] = useState<Track[]>([]) 
 
   // View states
   const [trackContextMenu, setTrackContextMenu] = useState<TrackContextMenuData | null>(null)
   const [playlistContextMenu, setPlaylistContextMenu] = useState<PlaylistMenuData | null>(null)
+  const [albumContextMenu, setAlbumContextMenu] = useState<AlbumMenuData | null>(null)
   const [isQueueOpen, setIsQueueOpen] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -173,12 +177,21 @@ function App() {
   // Helper functions to manage context menus (only one open at a time)
   const openTrackContextMenu = (data: TrackContextMenuData) => {
     setPlaylistContextMenu(null)
+    setAlbumContextMenu(null)
     setTrackContextMenu(data)
+    
   }
 
   const openPlaylistContextMenu = (data: PlaylistMenuData) => {
-    setTrackContextMenu(null)
     setPlaylistContextMenu(data)
+    setAlbumContextMenu(null)
+    setTrackContextMenu(null)
+  }
+
+  const openAlbumContextMenu = (data: AlbumMenuData) => {
+    setPlaylistContextMenu(null)
+    setAlbumContextMenu(data)
+    setTrackContextMenu(null)
   }
 
   useEffect(() => {
@@ -198,7 +211,12 @@ function App() {
           setPlaylists(savedPlaylists)
         }
 
-        console.log("Loaded database on startup:", { savedTracks, savedPlaylists })
+        const savedAlbums = await window.api.getAlbums()
+        if (savedAlbums) {
+          setAlbums(savedAlbums)
+        }
+
+        console.log("Loaded database on startup:", { savedTracks, savedPlaylists, savedAlbums })
       } catch (error) {
         console.error("Failed to load database:", error)
       }
@@ -214,8 +232,15 @@ function App() {
           setTracks(allTracks)
         } 
         else if (currentView.type === 'playlist') {
-          const playlistTracks = await window.api.getPlaylistTracks(currentView.id)
+          const playlistTracks = await window.api.getPlaylistTracks(currentView.playlist.id)
           setTracks(playlistTracks || [])
+        }
+        else if (currentView.type === 'album') {
+          const albumTracks = await window.api.getAlbumTracks(currentView.album.id)
+          setTracks(albumTracks || [])
+        }
+        else if (currentView.type === 'albums') {
+          setTracks([])
         }
         else if (currentView.type === 'playlists') {
           setTracks([])
@@ -242,6 +267,9 @@ function App() {
       setAllTracks(updatedLibrary || [])
       setLibraryCount((updatedLibrary || []).length)
 
+      const updatedAlbums = await window.api.getAlbums()
+      setAlbums(updatedAlbums || [])
+
       return newlyImportedIds
     } catch (error) {
       console.error("Failed to import folder:", error)
@@ -264,6 +292,9 @@ function App() {
       setAllTracks(updatedLibrary || [])
       setLibraryCount((updatedLibrary || []).length)
 
+      const updatedAlbums = await window.api.getAlbums()
+      setAlbums(updatedAlbums || [])
+
       return newlyImportedIds
     } catch (error) {
       console.error("Failed to import tracks:", error)
@@ -272,16 +303,16 @@ function App() {
   }
 
 
-  const handleCreatePlaylist = async (name: string, desc: string, coverImagePath: string | null) => {
+  const handleCreatePlaylist = async (name, desc, coverImagePath) => {
     try {
-      const newId = await window.api.createPlaylist(name, desc, coverImagePath)
+      const playlist = await window.api.createPlaylist(name, desc, coverImagePath)
 
       const updatedPlaylists = await window.api.getPlaylists()
       setPlaylists(updatedPlaylists || [])
 
       setIsModalOpen(false)
 
-      setCurrentView({ type: 'playlist', id: newId, name: name, desc:desc, coverImagePath: coverImagePath })
+      setCurrentView({ type: 'playlist', playlist: playlist})
       
     } catch (error) {
       console.error("Failed to create playlist:", error)
@@ -292,8 +323,8 @@ function App() {
     if (currentView.type !== 'playlist') return
 
     try {
-      await window.api.addTracksToPlaylist(currentView.id, selectedTrackIds)
-      const updatedTracks = await window.api.getPlaylistTracks(currentView.id)
+      await window.api.addTracksToPlaylist(currentView.playlist.id, selectedTrackIds)
+      const updatedTracks = await window.api.getPlaylistTracks(currentView.playlist.id)
       setTracks(updatedTracks || [])
       setIsAddSongsModalOpen(false)
     } catch (error) {
@@ -305,17 +336,20 @@ function App() {
     if (currentView.type !== 'playlist') return
 
     try {
-      await window.api.updatePlaylist(currentView.id, name, desc, coverImagePath)
+      await window.api.updatePlaylist(currentView.playlist.id, name, desc, coverImagePath)
       
       const updatedPlaylists = await window.api.getPlaylists()
       setPlaylists(updatedPlaylists || [])
-      
-      setCurrentView({ 
-        type: 'playlist', 
-        id: currentView.id, 
-        name: name, 
-        desc: desc, 
-        coverImagePath: coverImagePath 
+
+      const updatedPlaylist = updatedPlaylists?.find((playlist) => playlist.id === currentView.playlist.id)
+      setCurrentView({
+        type: 'playlist',
+        playlist: updatedPlaylist ?? {
+          ...currentView.playlist,
+          name,
+          desc,
+          cover_image_path: coverImagePath ?? undefined
+        }
       })
       
       // 4. Close the modal
@@ -334,7 +368,7 @@ function App() {
       setPlaylists(updatedPlaylists || [])
 
       // If the user is currently LOOKING at the playlist they just deleted, kick them back to the library!
-      if (currentView.type === 'playlist' && currentView.id === id) {
+      if (currentView.type === 'playlist' && currentView.playlist.id === id) {
         setCurrentView({ type: 'library' })
       }
     } catch (error) {
@@ -343,13 +377,7 @@ function App() {
   }
 
   const handleEditPlaylistFromMenu = (pl: Playlist) => {
-      setCurrentView({ 
-      type: 'playlist', 
-      id: pl.id, 
-      name: pl.name, 
-      desc: pl.desc || '', 
-      coverImagePath: pl.cover_image_path || null 
-    })
+    setCurrentView({ type: 'playlist', playlist: pl})
     setIsEditModalOpen(true)
   }
 
@@ -362,6 +390,7 @@ function App() {
 
       setPlaybackQueue(nextQueue)
       setCurrentTrack(plTracks[0] ?? null)
+      setSelectedTrack(plTracks[0] ?? null)
       setCurrentTime(0)
       setDuration(0)
     }
@@ -438,6 +467,25 @@ function App() {
   }, [togglePlayPause])
 
   useEffect(() => {
+    const isTextEditingElement = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false
+
+      const tagName = target.tagName.toLowerCase()
+      return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select'
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || isTextEditingElement(event.target)) return
+
+      event.preventDefault()
+      togglePlayPause()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [togglePlayPause])
+
+  useEffect(() => {
     window.api.onNextTrack(() => playNext())
   }, [])
 
@@ -454,6 +502,10 @@ function App() {
   const startPlaybackWithQueue = (track: Track | null, nextQueue: FIFOQueue<Track>) => {
     setPlaybackQueue(nextQueue)
     setCurrentTrack(track)
+    setSelectedTrack(track)
+    if(track) {
+      ++track.num_listens;
+    }
     setCurrentTime(0)
     setDuration(0)
   }
@@ -479,9 +531,9 @@ function App() {
     if (currentView.type !== 'playlist') return
 
     try {
-      await window.api.removeTrackFromPlaylist(currentView.id, trackId)
+      await window.api.removeTrackFromPlaylist(currentView.playlist.id, trackId)
       
-      const updatedTracks = await window.api.getPlaylistTracks(currentView.id)
+      const updatedTracks = await window.api.getPlaylistTracks(currentView.playlist.id)
       setTracks(updatedTracks || [])
     } catch (error) {
       console.error("Failed to remove track from playlist:", error)
@@ -500,7 +552,7 @@ function App() {
       
       // If we're in a playlist view, also refresh that
       if (currentView.type === 'playlist') {
-        const updatedPlaylistTracks = await window.api.getPlaylistTracks(currentView.id)
+        const updatedPlaylistTracks = await window.api.getPlaylistTracks(currentView.playlist.id)
         setTracks(updatedPlaylistTracks || [])
       }
     } catch (error) {
@@ -508,9 +560,9 @@ function App() {
     }
   }
 
-  const handleAddToPlaylist = async (playlistId: number, trackId: number) => {
+  const handleAddToPlaylist = async (playlist: Playlist, trackId: number) => {
     try {
-      await window.api.addTracksToPlaylist(playlistId, [trackId])
+      await window.api.addTracksToPlaylist(playlist.id, [trackId])
     } catch (error) {
       console.error("Failed to add track to playlist:", error)
     }
@@ -518,7 +570,7 @@ function App() {
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setDuration(audioRef.current.duration)
+      setDuration(currentTrack?.duration ?? 0)
     }
   }
 
@@ -574,7 +626,34 @@ const currentAudioSrc = currentTrack
   }, [currentAudioSrc]) 
 
   const playTrack = (track: Track) => {
-    startPlaybackWithQueue(track, new FIFOQueue<Track>())
+    const nextQueue = new FIFOQueue<Track>()
+    startPlaybackWithQueue(track, nextQueue)
+
+    if (currentTrack?.id === track.id && audioRef.current) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().then(() => {
+        setIsPlaying(true)
+      }).catch(err => {
+        console.error("Playback error:", err)
+        setIsPlaying(false)
+      })
+    }
+  }
+
+  const playTrackWithFollowingTracks = (track: Track, sourceTracks: Track[], startIndex: number) => {
+    const nextQueue = new FIFOQueue<Track>()
+    sourceTracks.slice(startIndex + 1).forEach((nextTrack) => nextQueue.enqueue(nextTrack))
+    startPlaybackWithQueue(track, nextQueue)
+
+    if (currentTrack?.id === track.id && audioRef.current) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().then(() => {
+        setIsPlaying(true)
+      }).catch(err => {
+        console.error("Playback error:", err)
+        setIsPlaying(false)
+      })
+    }
   }
 
   // play next button
@@ -595,11 +674,13 @@ const currentAudioSrc = currentTrack
         audioRef.current.removeAttribute('src');
       }
       setCurrentTrack(null);
+      setSelectedTrack(null);
       setIsPlaying(false);
       return;
     }
 
     setCurrentTrack(nextTrack);
+    setSelectedTrack(nextTrack);
     setCurrentTime(0);
     setDuration(0);
   }
@@ -629,15 +710,8 @@ const currentAudioSrc = currentTrack
       return
     }
 
-    setPlaybackQueue((prev) => {
-      const next = prev.clone()
-      next.enqueue(currentTrack)
-      return next
-    })
-
-    setCurrentTrack(previousTrack)
-    setCurrentTime(0)
-    setDuration(0)
+    startPlaybackWithQueue(previousTrack, playbackQueue) // play prev track
+    handlePlayNext(currentTrack) // enqueue the track we were just on
   }
 
   const shuffle = () => {
@@ -679,7 +753,7 @@ const currentAudioSrc = currentTrack
                 {playlists.map(pl => (
                   <li
                     key={pl.id}
-                    onClick={() => setCurrentView({ type: 'playlist', id: pl.id, name: pl.name, desc: pl.desc || '', coverImagePath: pl.cover_image_path || null })}
+                    onClick={() => setCurrentView({ type: 'playlist', playlist: pl })}
                     onContextMenu={(e: React.MouseEvent<HTMLLIElement>) => {
                       e.preventDefault()
                       openPlaylistContextMenu({ x: e.pageX, y: e.pageY, playlist: pl })
@@ -703,13 +777,28 @@ const currentAudioSrc = currentTrack
           )}
           <li onClick={() => setCurrentView({type: 'albums'})}>
             <svg viewBox="0 0 24 24" style={{stroke: 'transparent'}}><path fill="none" d="M0 0h24v24H0z"/><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2m0 14c2.213 0 4-1.787 4-4s-1.787-4-4-4-4 1.787-4 4 1.787 4 4 4m0-5c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1"/></svg>
-            Albums
+            Albums ({albums.length})
           </li>
           <li>
             <svg viewBox="0 0 512 512" style={{padding:'2px'}}><path d="M470.694 41.306C444.056 14.669 408.64 0 370.97 0s-73.086 14.669-99.723 41.306c-26.638 26.635-41.307 62.052-41.307 99.723 0 1.818.045 3.631.113 5.438L44.616 363.886c-21.623 24.583-23.844 60.029-7.31 86.872L0 488.067 23.934 512l37.313-37.314c11.738 7.23 25.113 10.889 38.516 10.889 17.227-.001 34.485-6.017 48.309-18.157l217.459-185.472c1.807.069 3.619.114 5.438.114 37.662 0 73.07-14.664 99.706-41.291l.019-.017c26.635-26.635 41.305-62.051 41.306-99.722 0-37.672-14.669-73.087-41.306-99.724M126.01 441.749l-.211.183c-15.575 13.734-39.294 12.969-53.999-1.734-14.707-14.705-15.467-38.427-1.732-54L238.272 188.99c6.939 19.238 18.086 36.872 32.975 51.761 14.891 14.891 32.525 26.037 51.761 32.978zm244.959-193.537c-28.629 0-55.544-11.15-75.788-31.394s-31.393-47.16-31.393-75.789c0-8.144.905-16.147 2.662-23.898 10.265 25.172 28.821 51.911 52.665 75.754s50.582 42.4 75.755 52.666a108 108 0 0 1-23.901 2.661m75.791-31.394c-5.438 5.438-19.232 4.912-36-1.376-21.578-8.092-46.258-25.037-67.712-46.49-21.453-21.453-38.398-46.134-46.49-67.712-6.288-16.767-6.815-30.562-1.376-36 20.244-20.243 47.159-31.392 75.789-31.392s55.545 11.149 75.791 31.392c20.243 20.244 31.392 47.16 31.392 75.79-.001 28.629-11.15 55.544-31.394 75.788"/><path d="m191.47 296.6 47.866-47.867 23.934 23.934-47.867 47.867z"/></svg>
             Artists
           </li>
         </ul>
+        {selectedTrack ? <div className='info-container'> 
+          <div className='item-title'>{selectedTrack?.title || selectedTrack?.filename}</div>
+          {selectedTrack?.album ?
+            <div className='text-soft'>Album: {selectedTrack.album}</div> : ''
+          }
+          { selectedTrack?.bit_rate ?
+            <div className='text-soft'>Bitrate: {formatBitrate(selectedTrack?.bit_rate) || 'Unknown'}</div> : '' 
+          }
+          {selectedTrack?.genre ? 
+            <div className='text-soft'>Genre: {selectedTrack?.genre} </div> : '' 
+          }
+          <div className='text-soft'>Duration: {formatDuration(selectedTrack?.duration) || '0:00'}</div>
+          <div className='text-soft'>Listens: {selectedTrack?.num_listens || 0}</div>
+        </div> : ''
+        }
       </nav>
       <nav className={isQueueOpen ? 'sidebar sidebar-queue' : 'sidebar sidebar-queue-closed'}>
         <QueueSidebar
@@ -733,17 +822,13 @@ const currentAudioSrc = currentTrack
                     return updated
                   })
                 }
-
-                setPlaybackQueue(remainingQueue)
-                setCurrentTrack(queueTrack)
-                setCurrentTime(0)
-                setDuration(0)
+                startPlaybackWithQueue(queueTrack, remainingQueue)
               }
             }}
 
-            onContextMenu={(e, track, index) => {
+            onContextMenu={(e, track) => {
               e.preventDefault()
-              openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+              openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
             }}
             onClear={handleClearQueueOrHistory}
           />
@@ -811,7 +896,7 @@ const currentAudioSrc = currentTrack
           </button>
           <div className="player-track">
             {currentTrack
-              ? currentTrack.filename 
+              ? currentTrack.title || currentTrack.filename
               : 'No track selected'}
           </div>
           <div className="player-info">
@@ -858,9 +943,26 @@ const currentAudioSrc = currentTrack
               setSearchText('')}}
             searchQuery={searchText}
             library={allTracks}
+            playlists={playlists}
+            albums={albums}
+            onPlayTrack={(track) => playTrack(track)}
+            onPlayPlaylist={(playlist) => handlePlayPlaylist(playlist)}
+            onClickPlaylist={(playlist) => setCurrentView({ type: 'playlist', playlist: playlist })}
+            onClickAlbum={(album) => setCurrentView({ type: 'album', album })}
+            onTrackContextMenu={(e, track) => {
+                e.preventDefault()
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
+              }}
+            onPlaylistContextMenu={(e, playlist) => {
+                e.preventDefault()
+                openPlaylistContextMenu({ x: e.pageX, y: e.pageY, playlist })
+              }}
+            onAlbumContextMenu={(e, album) => {
+                e.preventDefault()
+                openAlbumContextMenu({ x: e.pageX, y: e.pageY, album })
+              }}
             />
           </div>
-        
       </header>
 
       <main className="main-content">
@@ -873,9 +975,9 @@ const currentAudioSrc = currentTrack
               playTrack={playTrack} 
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
-              onTrackContextMenu={(e, track, index) => {
+              onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
               }}
             />
           </>
@@ -885,7 +987,7 @@ const currentAudioSrc = currentTrack
           <>
             <PlaylistsView 
               playlists={playlists} 
-              onOpenPlaylist={(pl) => setCurrentView({ type: 'playlist', id: pl.id, name: pl.name, desc: pl.desc || '', coverImagePath: pl.cover_image_path || null })} 
+              onOpenPlaylist={(pl) => setCurrentView({ type: 'playlist', playlist: pl })} 
               onNewPlaylist={() => setIsModalOpen(true)}
               onContextMenu={(e, pl) => {
                 e.preventDefault()
@@ -897,19 +999,17 @@ const currentAudioSrc = currentTrack
         {currentView.type === 'playlist' && (
           <>
             <PlaylistView 
-            playlistId={currentView.id}
-            playlistName={currentView.name}
-            playlistDesc={currentView.desc}
-            coverImagePath={currentView.coverImagePath || null}
+            playlist={currentView.playlist}
             tracks={tracks} 
             currentTrack={currentTrack} 
             isPlaying={isPlaying} 
             playTrack={playTrack} 
+            onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
             onAddSongsClick={() => setIsAddSongsModalOpen(true)}
             onEditClick={() => setIsEditModalOpen(true)}
-            onTrackContextMenu={(e, track, index) => {
+            onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'playlist' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'playlist' })
               }}
             />
           </>
@@ -918,20 +1018,43 @@ const currentAudioSrc = currentTrack
         {currentView.type === 'albums' && (
           <>
             <AlbumsView 
+              albums={albums}
               tracks={tracks} 
               currentTrack={currentTrack} 
               isPlaying={isPlaying} 
               playTrack={playTrack} 
+              onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
-              onTrackContextMenu={(e, track, index) => {
+              onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, index, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
               }}
             />
           </>
         )}
 
+        {currentView.type === 'album' && (
+          <>
+            <AlbumsView 
+              albums={albums}
+              selectedAlbum={currentView.album}
+              tracks={tracks} 
+              currentTrack={currentTrack} 
+              isPlaying={isPlaying} 
+              playTrack={playTrack} 
+              onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
+              onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
+              onBackToAlbums={() => setCurrentView({ type: 'albums' })}
+              onImportFiles={handleScanFiles}
+              onImportFolder={handleScanFolder}
+              onTrackContextMenu={(e, track) => {
+                e.preventDefault()
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+              }}
+            />
+          </>
+        )}
       </main>
 
       <TrackContextMenu 
@@ -953,6 +1076,15 @@ const currentAudioSrc = currentTrack
         onDelete={handleDeletePlaylist}
       />
 
+        {/* UNFINISHED ! */}
+      <AlbumContextMenu
+        menuData={albumContextMenu}
+        onClose={() => setAlbumContextMenu(null)}
+        onPlay={()=> {}}
+        onVisit={(album)=> setCurrentView({type: 'album', album: album})}
+        onDelete={() => {}}
+      />
+
       <AddSongsModal 
         isOpen={isAddSongsModalOpen}
         onClose={() => setIsAddSongsModalOpen(false)}
@@ -967,9 +1099,9 @@ const currentAudioSrc = currentTrack
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           onSave={handleEditPlaylist}
-          initialName={currentView.name}
-          initialDesc={currentView.desc}
-          initialImage={currentView.coverImagePath || null}
+          initialName={currentView.playlist.name}
+          initialDesc={currentView.playlist.desc ? currentView.playlist.desc : ''} 
+          initialImage={currentView.playlist.cover_image_path ? currentView.playlist.cover_image_path : ''}
         />
       )}
 

@@ -5,7 +5,6 @@ export interface TrackContextMenuData {
   x: number
   y: number
   track: Track
-  index: number
   source: 'library' | 'playlist' | 'queue'
 }
 
@@ -15,8 +14,8 @@ interface TrackContextMenuProps {
   onPlayNext: (track: Track) => void
   onAddToQueue: (track: Track) => void
   playlists?: Playlist[]
-  onAddToPlaylist?: (playlistId: number, trackId: number) => void
-  onRemoveFromQueue?: (index: number) => void
+  onAddToPlaylist?: (playlist: Playlist, trackId: number) => void
+  onRemoveFromQueue?: (trackId: number) => void
   onRemoveFromPlaylist?: (trackId: number) => void
   onDeleteFromLibrary?: (trackId: number) => void
 }
@@ -93,7 +92,7 @@ export default function TrackContextMenu({
                 className="context-menu-item"
                 onClick={() => {
                   if (onAddToPlaylist) {
-                    onAddToPlaylist(playlist.id, menuData.track.id)
+                    onAddToPlaylist(playlist, menuData.track.id)
                   }
                   onClose()
                   setShowPlaylistSubmenu(false)
@@ -122,7 +121,7 @@ export default function TrackContextMenu({
           <div className="context-menu-divider"></div>
           <div 
             className="context-menu-item danger" 
-            onClick={() => onRemoveFromQueue(menuData.index)}
+            onClick={() => onRemoveFromQueue(menuData.track.id)}
           >
             Remove from Queue
           </div>
@@ -132,7 +131,7 @@ export default function TrackContextMenu({
       {/* Only show "Remove from Playlist" if we right-clicked inside a playlist! */}
       {menuData.source === 'playlist' && onRemoveFromPlaylist && (
         <>
-          <div className="context-menu-divider"></div>
+          {/* <div className="context-menu-divider"></div> */}
           <div 
             className="context-menu-item danger" 
             onClick={() => onRemoveFromPlaylist(menuData.track.id)}
