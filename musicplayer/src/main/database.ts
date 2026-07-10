@@ -28,6 +28,7 @@ export function initializeDatabase() {
       name TEXT NOT NULL UNIQUE,
       sort_name TEXT,
       image_path TEXT,
+      description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `)
@@ -94,6 +95,9 @@ export function initializeDatabase() {
     );
   `)
 
+  ensureColumnExists('artists', 'sort_name', 'sort_name TEXT')
+  ensureColumnExists('artists', 'image_path', 'image_path TEXT')
+  ensureColumnExists('artists', 'description', 'description TEXT')
   ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
   ensureColumnExists('tracks', 'year', 'year INTEGER')
   ensureColumnExists('tracks', 'album_artist', 'album_artist TEXT')
@@ -111,6 +115,7 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_tracks_artist_id ON tracks(artist_id);
     CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id);
     CREATE INDEX IF NOT EXISTS idx_albums_album_artist_id ON albums(album_artist_id);
+    CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track_id ON playlist_tracks(track_id);
   `)
 
@@ -319,6 +324,87 @@ function backfillTrackAlbumRelations() {
 export function getAllTracks() {
   const stmt = db.prepare('SELECT * FROM tracks ORDER BY filename ASC')
   return stmt.all()
+}
+
+// --- ARTIST FUNCTIONS ---
+
+export function getAllArtists() {
+  const stmt = db.prepare(`
+    SELECT
+      artists.id,
+      artists.name,
+      artists.sort_name,
+      artists.image_path AS artist_image_path,
+      artists.description,
+      COALESCE(track_stats.track_count, 0) AS track_count,
+      COALESCE(album_stats.album_count, 0) AS album_count,
+      COALESCE(track_stats.total_duration, 0) AS total_duration
+    FROM artists
+    LEFT JOIN (
+      SELECT artist_id, COUNT(*) AS track_count, COALESCE(SUM(duration), 0) AS total_duration
+      FROM tracks
+      GROUP BY artist_id
+    ) AS track_stats ON track_stats.artist_id = artists.id
+    LEFT JOIN (
+      SELECT album_artist_id, COUNT(*) AS album_count
+      FROM albums
+      GROUP BY album_artist_id
+    ) AS album_stats ON album_stats.album_artist_id = artists.id
+    GROUP BY artists.id
+    ORDER BY COALESCE(artists.sort_name, artists.name) COLLATE NOCASE ASC
+  `)
+  return stmt.all()
+}
+
+export function getArtistTracks(artistId: number) {
+  const stmt = db.prepare(`
+    SELECT
+      tracks.*,
+      track_artists.name AS artist,
+      albums.title AS album,
+      album_artists.name AS album_artist,
+      albums.cover_image_path AS album_image_path
+    FROM tracks
+    LEFT JOIN artists AS track_artists ON track_artists.id = tracks.artist_id
+    LEFT JOIN albums ON albums.id = tracks.album_id
+    LEFT JOIN artists AS album_artists ON album_artists.id = albums.album_artist_id
+    WHERE tracks.artist_id = ? OR albums.album_artist_id = ?
+    ORDER BY albums.year ASC, albums.title COLLATE NOCASE ASC, COALESCE(tracks.disc_num, 1) ASC, COALESCE(tracks.track_num, 0) ASC, tracks.filename ASC
+  `)
+  return stmt.all(artistId, artistId)
+}
+
+export function getArtistAlbums(artistId: number) {
+  const stmt = db.prepare(`
+    SELECT
+      albums.id,
+      albums.title,
+      albums.album_artist_id,
+      artists.name AS album_artist,
+      albums.year,
+      albums.genre,
+      albums.cover_image_path,
+      COUNT(tracks.id) AS track_count,
+      COALESCE(SUM(tracks.duration), 0) AS total_duration
+    FROM albums
+    LEFT JOIN artists ON artists.id = albums.album_artist_id
+    LEFT JOIN tracks ON tracks.album_id = albums.id
+    WHERE albums.album_artist_id = ?
+    GROUP BY albums.id
+    ORDER BY albums.year ASC, albums.title COLLATE NOCASE ASC
+  `)
+  return stmt.all(artistId)
+}
+
+export function updateArtist(id: number, name: string, description: string, imagePath: string | null) {
+  const artistName = normalizeMusicName(name, 'Unknown Artist')
+  const stmt = db.prepare(`
+    UPDATE artists
+    SET name = ?, sort_name = ?, description = ?, image_path = ?
+    WHERE id = ?
+  `)
+  stmt.run(artistName, artistName, description || null, imagePath || null, id)
+  return true
 }
 
 // --- ALBUM FUNCTIONS ---

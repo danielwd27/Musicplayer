@@ -6,14 +6,15 @@ import { formatDuration } from '@renderer/utilities/formatting'
 interface LibraryViewProps {
   tracks: Track[]
   currentTrack: Track | null
-  isPlaying: boolean
   playTrack: (track: Track) => void
+  onOpenTrackAlbum: (track: Track) => void
+  onOpenTrackArtist: (track: Track) => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
   onImportFiles: () => Promise<number[]>
   onImportFolder: () => Promise<number[]>
 }
 
-export default function LibraryView({ tracks, currentTrack, isPlaying, playTrack, onTrackContextMenu, onImportFiles, onImportFolder }: LibraryViewProps) {
+export default function LibraryView({ tracks, currentTrack, playTrack, onOpenTrackAlbum, onOpenTrackArtist, onTrackContextMenu, onImportFiles, onImportFolder }: LibraryViewProps) {
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -83,22 +84,47 @@ export default function LibraryView({ tracks, currentTrack, isPlaying, playTrack
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', flex: 1}}>
-                <span style={{ marginRight: '15px', width: '20px' }}>
-                  {currentTrack?.id === track.id && isPlaying ? '▶' : index + 1}
+                <span className='text-soft track-item-index'>
+                  {currentTrack?.id === track.id ? '▶' : index + 1}
                 </span>
+                <div className="track-album-art">
+                  {track.album_image_path ? (
+                    <img
+                      src={`local://stream?path=${encodeURIComponent(track.album_image_path.replace(/\\/g, '/'))}`}
+                      alt={track.album || track.title || track.filename}
+                    />
+                  ) : (
+                    <span>🎵</span>
+                  )}
+                </div>
                 <span className='item-title' style={{width: '20%'}}>{track.title || track.filename}</span>
                 <span className='text-soft track-item-metadata'>
-                  <span>{track.artist}</span>
-                  <span>{track.album}</span>
+                  <button
+                    type="button"
+                    className="metadata-link"
+                    onClick={(e) => { e.stopPropagation(); onOpenTrackArtist(track) }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    disabled={!track.artist}
+                    title="Open artist page"
+                  >
+                    {track.artist || 'Unknown Artist'}
+                  </button>
+                  <button
+                    type="button"
+                    className="metadata-link"
+                    onClick={(e) => { e.stopPropagation(); onOpenTrackAlbum(track) }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    disabled={!track.album}
+                    title="Open album page"
+                  >
+                    {track.album || 'Unknown Album'}
+                  </button>
                   <span>{track.year}</span>
                 </span>
-                <span className='text-soft'>
+                <span className='text-soft track-duration'>
                 {formatDuration(track.duration)}
                 </span>
               </div>
-              
-            </div>
           ))}
         </div>
       )}

@@ -46,7 +46,7 @@ export default function AlbumContextMenu({
         Go to Album
       </div>
       
-      <div className="context-menu-divider"></div>
+      {/* <div className="context-menu-divider"></div> */}
       
       {/* <div className="context-menu-item" onClick={() => { onEdit(menuData.album); onClose(); }}>
         Edit Details

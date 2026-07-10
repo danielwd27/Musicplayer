@@ -6,29 +6,34 @@ interface QueueSidebarProps {
   isOpen: boolean
   queue: Track[]
   historyQueue: Track[]
-  isShuffled: boolean
-  shuffledQueue: Track[]
   currentTrack: Track | null
-  onClose: () => void
+  onReorderQueue: (fromIndex: number, toIndex: number) => void
   onPlayTrack: (index: number) => void
   onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
   onClear: (target: 'queue' | 'history') => void
 }
 
-export default function QueueSidebar({ isOpen, queue, historyQueue, isShuffled, shuffledQueue, currentTrack, onClose, onPlayTrack, onContextMenu: onTrackContextMenu, onClear }: QueueSidebarProps) {
+export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack, onReorderQueue, onPlayTrack, onContextMenu: onTrackContextMenu, onClear }: QueueSidebarProps) {
 
   const[activeTab, setActiveTab] = useState<'queue' | 'history'>('queue')
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
   let list: Track[] = queue;
   if (!isOpen) return null
-  if (activeTab === 'queue' && !isShuffled) {
+  if (activeTab === 'queue') {
     list = queue;
-  } else if (activeTab === 'queue' && isShuffled) {
-    list = shuffledQueue;
   } else {
     list = historyQueue;
   }
 
   const emptyText = activeTab === 'queue' ? 'Your queue is empty.' : 'No history available.';
+  const getDropClass = (index: number) => {
+    if (draggedIndex === null || dropIndex === null) return ''
+    if (dropIndex === draggedIndex || dropIndex === draggedIndex + 1) return ''
+    if (dropIndex === list.length && index === list.length - 1) return 'drop-after'
+    if (dropIndex === index) return 'drop-before'
+    return ''
+  }
 
   return (
     <>
@@ -55,7 +60,39 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, isShuffled, 
             {list.map((track, i) => (
               <div 
                 key={`${track.id}-${i}`}
-                className={`queue-item ${currentTrack?.id === track.id ? 'playing' : ''}`}
+                className={`queue-item ${currentTrack?.id === track.id ? 'playing' : ''} ${draggedIndex === i ? 'dragging' : ''} ${getDropClass(i)}`}
+                draggable={activeTab === 'queue'}
+                onDragStart={(e) => {
+                  if (activeTab !== 'queue') return
+                  setDraggedIndex(i)
+                  setDropIndex(i)
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('text/plain', String(i))
+                }}
+                onDragOver={(e) => {
+                  if (activeTab === 'queue') {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const isAfterMidpoint = e.clientY > rect.top + rect.height / 2
+                    setDropIndex(isAfterMidpoint ? i + 1 : i)
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (activeTab !== 'queue') return
+
+                  const fromIndex = draggedIndex ?? Number(e.dataTransfer.getData('text/plain'))
+                  if (Number.isInteger(fromIndex)) {
+                    onReorderQueue(fromIndex, dropIndex ?? i)
+                  }
+                  setDraggedIndex(null)
+                  setDropIndex(null)
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null)
+                  setDropIndex(null)
+                }}
                 onDoubleClick={() => {
                   if (activeTab === 'queue') {
                     onPlayTrack(i)
@@ -68,7 +105,7 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, isShuffled, 
                   <span>
                     {track.title || track.filename}
                   </span>
-                  <div className='player-info' style={{fontSize: '12px', textAlign: 'left'}}>
+                  <div className='text-soft' style={{fontSize: '12px', textAlign: 'left'}}>
                     {track?.artist ? track?.artist : 'Unknown Artist'}
                     {' — '}
                     {track?.album ? track.album : 'Unknown Album'}

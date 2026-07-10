@@ -1,138 +1,30 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Track, Playlist, Album } from './env'
+import { Track, Playlist, Album, Artist } from './env'
 
 import LibraryView from './views/LibraryView'
 import PlaylistsView from './views/PlaylistsView'
 import PlaylistView from './views/PlaylistView'
 import AlbumsView from './views/AlbumsView'
+import ArtistsView from './views/ArtistsView'
 
 import NewPlaylistModal from './components/NewPlaylistModal'
 import AddSongsModal from './components/AddSongsModal'
 import EditPlaylistModal from './components/EditPlaylistModal'
+import EditArtistModal from './components/EditArtistModal'
 import QueueSidebar from './components/QueueSidebar'
 import TrackContextMenu, { TrackContextMenuData } from './components/TrackContextMenu'
 import PlaylistContextMenu, { PlaylistMenuData } from './components/PlaylistContextMenu'
 import AlbumContextMenu, { AlbumMenuData } from './components/AlbumContextMenu'
+import ArtistContextMenu, { ArtistMenuData } from './components/ArtistContextMenu'
 import { formatDuration, formatBitrate } from './utilities/formatting'
 import SearchPopup from './components/SearchPopup'
-
-type QueueNode<T> = {
-  value: T
-  next: QueueNode<T> | null
-}
-
-// this is lowkey a double ended queue and not a fifo- it was expanded after it's initital creation.
-// as i attempt to implement shuffling i question why i made this queue to begin with. :(
-class FIFOQueue<T> {
-  private head: QueueNode<T> | null = null
-  private tail: QueueNode<T> | null = null
-  private sizeValue = 0
-
-  enqueue(value: T): void {
-    const node: QueueNode<T> = { value, next: null }
-
-    if (!this.tail) {
-      this.head = node
-      this.tail = node
-    } else {
-      this.tail.next = node
-      this.tail = node
-    }
-
-    this.sizeValue += 1
-  }
-
-  enqueueFront(value: T): void {
-    const node: QueueNode<T> = {value, next: null}
-
-    if (!this.head) {
-      this.head = node
-      this.tail = node
-    } else {
-      node.next = this.head
-      this.head = node
-    }
-
-    this.sizeValue += 1
-  } 
-
-  dequeue(): T | null {
-    if (!this.head) return null
-
-    const value = this.head.value
-    this.head = this.head.next
-
-    if (!this.head) {
-      this.tail = null
-    }
-
-    this.sizeValue -= 1
-    return value
-  }
-
-  pop(): T | null {
-    if (!this.tail) return null
-
-    let current = this.head
-    let previous: QueueNode<T> | null = null
-
-    while (current?.next) {
-      previous = current
-      current = current.next
-    }
-
-    if (!current) return null
-
-    if (previous) {
-      previous.next = null
-      this.tail = previous
-    } else {
-      this.head = null
-      this.tail = null
-    }
-
-    this.sizeValue -= 1
-    return current.value
-  }
-
-  peek(): T | null {
-    return this.head?.value ?? null
-  }
-
-  clear(): void {
-    this.head = null
-    this.tail = null
-    this.sizeValue = 0
-  }
-
-  get length(): number {
-    return this.sizeValue
-  }
-
-  toArray(): T[] {
-    const values: T[] = []
-    let current = this.head
-
-    while (current) {
-      values.push(current.value)
-      current = current.next
-    }
-
-    return values
-  }
-
-  clone(): FIFOQueue<T> {
-    const clone = new FIFOQueue<T>()
-    this.toArray().forEach((item) => clone.enqueue(item))
-    return clone
-  }
-}
 
 type ViewState = 
   | { type: 'library' }
   | { type: 'albums'}
   | { type: 'album', album: Album}
   | { type: 'artists'}
+  | { type: 'artist', artist: Artist}
   | { type: 'playlists'}
   | { type: 'playlist', playlist: Playlist}
 
@@ -141,9 +33,10 @@ function App() {
   const [libraryCount, setLibraryCount] = useState(0) // total library track count
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
-  const [playbackQueue, setPlaybackQueue] = useState<FIFOQueue<Track>>(new FIFOQueue<Track>())
-  const [shuffledQueue, setShuffledQueue] = useState<Track[]>([])
-  const [historyQueue, setHistoryQueue] = useState<FIFOQueue<Track>>(new FIFOQueue<Track>())
+  const [artists, setArtists] = useState<Artist[]>([])
+  const [artistAlbums, setArtistAlbums] = useState<Album[]>([])
+  const [playbackQueue, setPlaybackQueue] = useState<Track[]>([])
+  const [historyQueue, setHistoryQueue] = useState<Track[]>([])
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [allTracks, setAllTracks] = useState<Track[]>([]) 
@@ -152,9 +45,11 @@ function App() {
   const [trackContextMenu, setTrackContextMenu] = useState<TrackContextMenuData | null>(null)
   const [playlistContextMenu, setPlaylistContextMenu] = useState<PlaylistMenuData | null>(null)
   const [albumContextMenu, setAlbumContextMenu] = useState<AlbumMenuData | null>(null)
+  const [artistContextMenu, setArtistContextMenu] = useState<ArtistMenuData | null>(null)
   const [isQueueOpen, setIsQueueOpen] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingArtist, setEditingArtist] = useState<Artist | null>(null)
   const [isPlaylistsExpanded, setIsPlaylistsExpanded] = useState(false)
   const [isAddSongsModalOpen, setIsAddSongsModalOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -178,6 +73,7 @@ function App() {
   const openTrackContextMenu = (data: TrackContextMenuData) => {
     setPlaylistContextMenu(null)
     setAlbumContextMenu(null)
+    setArtistContextMenu(null)
     setTrackContextMenu(data)
     
   }
@@ -185,12 +81,21 @@ function App() {
   const openPlaylistContextMenu = (data: PlaylistMenuData) => {
     setPlaylistContextMenu(data)
     setAlbumContextMenu(null)
+    setArtistContextMenu(null)
     setTrackContextMenu(null)
   }
 
   const openAlbumContextMenu = (data: AlbumMenuData) => {
     setPlaylistContextMenu(null)
     setAlbumContextMenu(data)
+    setArtistContextMenu(null)
+    setTrackContextMenu(null)
+  }
+
+  const openArtistContextMenu = (data: ArtistMenuData) => {
+    setPlaylistContextMenu(null)
+    setAlbumContextMenu(null)
+    setArtistContextMenu(data)
     setTrackContextMenu(null)
   }
 
@@ -216,7 +121,12 @@ function App() {
           setAlbums(savedAlbums)
         }
 
-        console.log("Loaded database on startup:", { savedTracks, savedPlaylists, savedAlbums })
+        const savedArtists = await window.api.getArtists()
+        if (savedArtists) {
+          setArtists(savedArtists)
+        }
+
+        console.log("Loaded database on startup:", { savedTracks, savedPlaylists, savedAlbums, savedArtists })
       } catch (error) {
         console.error("Failed to load database:", error)
       }
@@ -239,11 +149,25 @@ function App() {
           const albumTracks = await window.api.getAlbumTracks(currentView.album.id)
           setTracks(albumTracks || [])
         }
+        else if (currentView.type === 'artist') {
+          const [artistTracks, artistAlbums] = await Promise.all([
+            window.api.getArtistTracks(currentView.artist.id),
+            window.api.getArtistAlbums(currentView.artist.id)
+          ])
+          setTracks(artistTracks || [])
+          setArtistAlbums(artistAlbums || [])
+        }
         else if (currentView.type === 'albums') {
           setTracks([])
+          setArtistAlbums([])
+        }
+        else if (currentView.type === 'artists') {
+          setTracks([])
+          setArtistAlbums([])
         }
         else if (currentView.type === 'playlists') {
           setTracks([])
+          setArtistAlbums([])
         }
       } catch (error) {
         console.error("Failed to sync view data:", error)
@@ -270,6 +194,9 @@ function App() {
       const updatedAlbums = await window.api.getAlbums()
       setAlbums(updatedAlbums || [])
 
+      const updatedArtists = await window.api.getArtists()
+      setArtists(updatedArtists || [])
+
       return newlyImportedIds
     } catch (error) {
       console.error("Failed to import folder:", error)
@@ -294,6 +221,9 @@ function App() {
 
       const updatedAlbums = await window.api.getAlbums()
       setAlbums(updatedAlbums || [])
+
+      const updatedArtists = await window.api.getArtists()
+      setArtists(updatedArtists || [])
 
       return newlyImportedIds
     } catch (error) {
@@ -381,14 +311,43 @@ function App() {
     setIsEditModalOpen(true)
   }
 
+  const handleEditArtistFromMenu = (artist: Artist) => {
+    setEditingArtist(artist)
+  }
+
+  const handleEditArtist = async (name: string, description: string, imagePath: string | null) => {
+    if (!editingArtist) return
+
+    try {
+      await window.api.updateArtist(editingArtist.id, name, description, imagePath)
+
+      const updatedArtists = await window.api.getArtists()
+      setArtists(updatedArtists || [])
+
+      const updatedArtist = updatedArtists?.find((artist) => artist.id === editingArtist.id)
+      const nextArtist = updatedArtist ?? {
+        ...editingArtist,
+        name,
+        sort_name: name,
+        description: description || undefined,
+        artist_image_path: imagePath ?? undefined
+      }
+
+      if (currentView.type === 'artist' && currentView.artist.id === editingArtist.id) {
+        setCurrentView({ type: 'artist', artist: nextArtist })
+      }
+
+      setEditingArtist(null)
+    } catch (error) {
+      console.error('Failed to edit artist:', error)
+    }
+  }
+
   const handlePlayPlaylist = async (pl: Playlist) => {
     const plTracks = await window.api.getPlaylistTracks(pl.id)
 
     if (plTracks && plTracks.length > 0) {
-      const nextQueue = new FIFOQueue<Track>()
-      plTracks.slice(1).forEach((track) => nextQueue.enqueue(track))
-
-      setPlaybackQueue(nextQueue)
+      setPlaybackQueue(plTracks.slice(1))
       setCurrentTrack(plTracks[0] ?? null)
       setSelectedTrack(plTracks[0] ?? null)
       setCurrentTime(0)
@@ -396,11 +355,23 @@ function App() {
     }
   }
 
+  const handlePlayArtist = async (artist: Artist) => {
+    const artistTracks = await window.api.getArtistTracks(artist.id)
+
+    if (artistTracks && artistTracks.length > 0) {
+      setPlaybackQueue(artistTracks.slice(1))
+      setCurrentTrack(artistTracks[0] ?? null)
+      setSelectedTrack(artistTracks[0] ?? null)
+      setCurrentTime(0)
+      setDuration(0)
+    }
+  }
+
   const handleClearQueueOrHistory = (target: 'queue' | 'history') => {
     if (target === 'history') {
-      setHistoryQueue(new FIFOQueue<Track>())
+      setHistoryQueue([])
     } else {
-      setPlaybackQueue(new FIFOQueue<Track>())
+      setPlaybackQueue([])
     }
   }
 
@@ -408,6 +379,65 @@ function App() {
     const value = e.target.value;
     setSearchText(value);
     setIsSearchPopupOpen(value.trim() !== '');
+  }
+
+  const handleOpenCurrentAlbum = () => {
+    if (!currentTrack) return
+
+    const album = albums.find((album) => album.id === currentTrack.album_id)
+
+    if (!album) {
+      console.warn('Album page not found for current track:', currentTrack)
+      return
+    }
+
+    setCurrentView({ type: 'album', album })
+  }
+
+  const handleOpenCurrentArtist = () => {
+    if (!currentTrack) return
+
+    const artist = artists.find((artist) => artist.id === currentTrack.artist_id)
+
+    if (!artist) {
+      console.warn('Artist page not found for current track:', currentTrack)
+      return
+    }
+
+    setCurrentView({ type: 'artist', artist })
+  }
+
+  const openTrackAlbumPage = (track: Track) => {
+    const album = albums.find((album) => album.id === track.album_id)
+
+    if (!album) {
+      console.warn('Album page not found for track:', track)
+      return
+    }
+
+    setCurrentView({ type: 'album', album })
+  }
+
+  const openTrackArtistPage = (track: Track) => {
+    const artist = artists.find((artist) => artist.id === track.artist_id)
+
+    if (!artist) {
+      console.warn('Artist page not found for track:', track)
+      return
+    }
+
+    setCurrentView({ type: 'artist', artist })
+  }
+
+  const openAlbumArtistPage = (album: Album) => {
+    const artist = artists.find((artist) => artist.id === album.album_artist_id)
+
+    if (!artist) {
+      console.warn('Artist page not found for album:', album)
+      return
+    }
+
+    setCurrentView({ type: 'artist', artist })
   }
 
   const toggleMute = useCallback(() => {
@@ -499,7 +529,7 @@ function App() {
 
   // Queue Controls
 
-  const startPlaybackWithQueue = (track: Track | null, nextQueue: FIFOQueue<Track>) => {
+  const startPlaybackWithQueue = (track: Track | null, nextQueue: Track[]) => {
     setPlaybackQueue(nextQueue)
     setCurrentTrack(track)
     setSelectedTrack(track)
@@ -512,17 +542,29 @@ function App() {
 
   // function for ADDING track to the front of the queue
   const handlePlayNext = (track: Track) => {
-    setPlaybackQueue((prev) => {
-      const next = prev.clone()
-      next.enqueueFront(track)
-      return next
-    })
+    setPlaybackQueue((prev) => [track, ...prev])
   }
 
   const handleAddToQueue = (track: Track) => {
+    setPlaybackQueue((prev) => [...prev, track])
+  }
+
+  const handleReorderQueue = (fromIndex: number, toIndex: number) => {
     setPlaybackQueue((prev) => {
-      const next = prev.clone()
-      next.enqueue(track)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.length || toIndex > prev.length) {
+        return prev
+      }
+
+      const next = [...prev]
+      const [movedTrack] = next.splice(fromIndex, 1)
+      const insertionIndex = fromIndex < toIndex ? toIndex - 1 : toIndex
+
+      if (fromIndex === insertionIndex) {
+        return prev
+      }
+
+      next.splice(insertionIndex, 0, movedTrack)
+      setIsShuffled(false)
       return next
     })
   }
@@ -626,8 +668,7 @@ const currentAudioSrc = currentTrack
   }, [currentAudioSrc]) 
 
   const playTrack = (track: Track) => {
-    const nextQueue = new FIFOQueue<Track>()
-    startPlaybackWithQueue(track, nextQueue)
+    startPlaybackWithQueue(track, [])
 
     if (currentTrack?.id === track.id && audioRef.current) {
       audioRef.current.currentTime = 0
@@ -641,9 +682,7 @@ const currentAudioSrc = currentTrack
   }
 
   const playTrackWithFollowingTracks = (track: Track, sourceTracks: Track[], startIndex: number) => {
-    const nextQueue = new FIFOQueue<Track>()
-    sourceTracks.slice(startIndex + 1).forEach((nextTrack) => nextQueue.enqueue(nextTrack))
-    startPlaybackWithQueue(track, nextQueue)
+    startPlaybackWithQueue(track, sourceTracks.slice(startIndex + 1))
 
     if (currentTrack?.id === track.id && audioRef.current) {
       audioRef.current.currentTime = 0
@@ -659,14 +698,10 @@ const currentAudioSrc = currentTrack
   // play next button
   const playNext = () => {
     if (currentTrack) {
-      setHistoryQueue((prev) => {
-        const next = prev.clone()
-        next.enqueue(currentTrack)
-        return next
-      })
+      setHistoryQueue((prev) => [...prev, currentTrack])
     }
 
-    const nextTrack = playbackQueue.dequeue()
+    const [nextTrack, ...remainingQueue] = playbackQueue
     if (!nextTrack) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -679,6 +714,7 @@ const currentAudioSrc = currentTrack
       return;
     }
 
+    setPlaybackQueue(remainingQueue);
     setCurrentTrack(nextTrack);
     setSelectedTrack(nextTrack);
     setCurrentTime(0);
@@ -701,7 +737,7 @@ const currentAudioSrc = currentTrack
       return
     }
 
-    const previousTrack = historyQueue.pop()
+    const previousTrack = historyQueue[historyQueue.length - 1]
     if (!previousTrack) {
       setCurrentTime(0)
       if (audioRef.current) {
@@ -710,22 +746,24 @@ const currentAudioSrc = currentTrack
       return
     }
 
-    startPlaybackWithQueue(previousTrack, playbackQueue) // play prev track
-    handlePlayNext(currentTrack) // enqueue the track we were just on
+    setHistoryQueue((prev) => prev.slice(0, -1))
+    startPlaybackWithQueue(previousTrack, [currentTrack, ...playbackQueue])
   }
 
   const shuffle = () => {
-    const tracks = playbackQueue.toArray()
-    // Fisher-Yates Algorithm :)
-    for (let i: number = tracks.length - 1; i > 0; --i) {
-      let j: number = Math.floor(Math.random() * (i+1)); // Math.random() returns number [0,1]
-      [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
-    }
-    setShuffledQueue(tracks)
-    setIsShuffled(!isShuffled) // toggle isShuffled flag
+    setPlaybackQueue((prev) => {
+      const tracks = [...prev]
+      // Fisher-Yates Algorithm :)
+      for (let i: number = tracks.length - 1; i > 0; --i) {
+        let j: number = Math.floor(Math.random() * (i+1)); // Math.random() returns number [0,1]
+        ;[tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+      }
+      return tracks
+    })
+    setIsShuffled(true)
   }
 
-  const queueItems = playbackQueue.toArray()
+  const queueItems = playbackQueue
   const sliderRange = (volume*100 + 5) / (110) * 100;
 
   return (
@@ -779,9 +817,9 @@ const currentAudioSrc = currentTrack
             <svg viewBox="0 0 24 24" style={{stroke: 'transparent'}}><path fill="none" d="M0 0h24v24H0z"/><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2m0 14c2.213 0 4-1.787 4-4s-1.787-4-4-4-4 1.787-4 4 1.787 4 4 4m0-5c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1"/></svg>
             Albums ({albums.length})
           </li>
-          <li>
+          <li onClick={() => setCurrentView({type: 'artists'})}>
             <svg viewBox="0 0 512 512" style={{padding:'2px'}}><path d="M470.694 41.306C444.056 14.669 408.64 0 370.97 0s-73.086 14.669-99.723 41.306c-26.638 26.635-41.307 62.052-41.307 99.723 0 1.818.045 3.631.113 5.438L44.616 363.886c-21.623 24.583-23.844 60.029-7.31 86.872L0 488.067 23.934 512l37.313-37.314c11.738 7.23 25.113 10.889 38.516 10.889 17.227-.001 34.485-6.017 48.309-18.157l217.459-185.472c1.807.069 3.619.114 5.438.114 37.662 0 73.07-14.664 99.706-41.291l.019-.017c26.635-26.635 41.305-62.051 41.306-99.722 0-37.672-14.669-73.087-41.306-99.724M126.01 441.749l-.211.183c-15.575 13.734-39.294 12.969-53.999-1.734-14.707-14.705-15.467-38.427-1.732-54L238.272 188.99c6.939 19.238 18.086 36.872 32.975 51.761 14.891 14.891 32.525 26.037 51.761 32.978zm244.959-193.537c-28.629 0-55.544-11.15-75.788-31.394s-31.393-47.16-31.393-75.789c0-8.144.905-16.147 2.662-23.898 10.265 25.172 28.821 51.911 52.665 75.754s50.582 42.4 75.755 52.666a108 108 0 0 1-23.901 2.661m75.791-31.394c-5.438 5.438-19.232 4.912-36-1.376-21.578-8.092-46.258-25.037-67.712-46.49-21.453-21.453-38.398-46.134-46.49-67.712-6.288-16.767-6.815-30.562-1.376-36 20.244-20.243 47.159-31.392 75.789-31.392s55.545 11.149 75.791 31.392c20.243 20.244 31.392 47.16 31.392 75.79-.001 28.629-11.15 55.544-31.394 75.788"/><path d="m191.47 296.6 47.866-47.867 23.934 23.934-47.867 47.867z"/></svg>
-            Artists
+            Artists ({artists.length})
           </li>
         </ul>
         {selectedTrack ? <div className='info-container'> 
@@ -804,25 +842,16 @@ const currentAudioSrc = currentTrack
         <QueueSidebar
             isOpen={isQueueOpen} 
             queue={queueItems} 
-            historyQueue={historyQueue.toArray()}
-            shuffledQueue={shuffledQueue}
-            isShuffled={isShuffled}
+            historyQueue={historyQueue}
             currentTrack={currentTrack} 
-            onClose={() => setIsQueueOpen(false)}
+            onReorderQueue={handleReorderQueue}
             onPlayTrack={(index) => {
               const queueTrack = queueItems[index]
               if (queueTrack) {
-                const remainingQueue = new FIFOQueue<Track>()
-                queueItems.slice(index + 1).forEach((track) => remainingQueue.enqueue(track))
-
                 if (currentTrack) {
-                  setHistoryQueue((prev) => {
-                    const updated = prev.clone()
-                    updated.enqueue(currentTrack)
-                    return updated
-                  })
+                  setHistoryQueue((prev) => [...prev, currentTrack])
                 }
-                startPlaybackWithQueue(queueTrack, remainingQueue)
+                startPlaybackWithQueue(queueTrack, queueItems.slice(index + 1))
               }
             }}
 
@@ -900,12 +929,26 @@ const currentAudioSrc = currentTrack
               : 'No track selected'}
           </div>
           <div className="player-info">
-            {currentTrack?.artist ?
-            currentTrack?.artist : 'Unknown Artist'}
-            {' — '}
-            {currentTrack?.album ?
-            currentTrack.album : 'Unknown Album'}
-            </div>
+            <button
+              type="button"
+              className="player-link"
+              onClick={handleOpenCurrentArtist}
+              disabled={!currentTrack}
+              title="Open artist page"
+            >
+              {currentTrack?.artist ? currentTrack.artist : 'Unknown Artist'}
+            </button>
+            <span className="player-info-separator">—</span>
+            <button
+              type="button"
+              className="player-link"
+              onClick={handleOpenCurrentAlbum}
+              disabled={!currentTrack}
+              title="Open album page"
+            >
+              {currentTrack?.album ? currentTrack.album : 'Unknown Album'}
+            </button>
+          </div>
           <button className="btn control-btn repeat-btn" style={{ padding: '2px'}}>
             <svg viewBox="0 0 24 24" fill="none"><g clip-path="url(#a)" stroke-width="2" stroke-linecap="round"><path d="m19 5 2 2m0 0-2 2m2-2H7M5 19l-2-2m0 0 2-2m-2 2h14" stroke-linejoin="round"/><path d="M3 11a4 4 0 0 1 4-4m14 6a4 4 0 0 1-4 4"/></g></svg>
           </button>
@@ -971,8 +1014,9 @@ const currentAudioSrc = currentTrack
             <LibraryView 
               tracks={tracks} 
               currentTrack={currentTrack} 
-              isPlaying={isPlaying} 
               playTrack={playTrack} 
+              onOpenTrackAlbum={openTrackAlbumPage}
+              onOpenTrackArtist={openTrackArtistPage}
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
               onTrackContextMenu={(e, track) => {
@@ -1002,9 +1046,10 @@ const currentAudioSrc = currentTrack
             playlist={currentView.playlist}
             tracks={tracks} 
             currentTrack={currentTrack} 
-            isPlaying={isPlaying} 
             playTrack={playTrack} 
             onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
+            onOpenTrackAlbum={openTrackAlbumPage}
+            onOpenTrackArtist={openTrackArtistPage}
             onAddSongsClick={() => setIsAddSongsModalOpen(true)}
             onEditClick={() => setIsEditModalOpen(true)}
             onTrackContextMenu={(e, track) => {
@@ -1021,14 +1066,19 @@ const currentAudioSrc = currentTrack
               albums={albums}
               tracks={tracks} 
               currentTrack={currentTrack} 
-              isPlaying={isPlaying} 
               playTrack={playTrack} 
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
+              onOpenAlbumArtist={openAlbumArtistPage}
+              onOpenTrackArtist={openTrackArtistPage}
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
                 openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+              }}
+              onAlbumContextMenu={(e, album) => {
+                e.preventDefault()
+                openAlbumContextMenu({ x: e.pageX, y: e.pageY, album})
               }}
             />
           </>
@@ -1041,13 +1091,77 @@ const currentAudioSrc = currentTrack
               selectedAlbum={currentView.album}
               tracks={tracks} 
               currentTrack={currentTrack} 
-              isPlaying={isPlaying} 
               playTrack={playTrack} 
               onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
+              onOpenAlbumArtist={openAlbumArtistPage}
+              onOpenTrackArtist={openTrackArtistPage}
               onBackToAlbums={() => setCurrentView({ type: 'albums' })}
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
+              onTrackContextMenu={(e, track) => {
+                e.preventDefault()
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+              }}
+              onAlbumContextMenu={(e, album) => {
+                e.preventDefault()
+                openAlbumContextMenu({ x: e.pageX, y: e.pageY, album})
+              }}
+            />
+          </>
+        )}
+
+        {currentView.type === 'artists' && (
+          <>
+            <ArtistsView
+              artists={artists}
+              selectedArtistAlbums={[]}
+              selectedArtistTracks={[]}
+              currentTrack={currentTrack}
+              playTrack={playTrack}
+              onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
+              onOpenTrackAlbum={openTrackAlbumPage}
+              onAlbumContextMenu={(e, album) => {
+                e.preventDefault()
+                openAlbumContextMenu({ x: e.pageX, y: e.pageY, album })
+              }}
+              onOpenArtist={(artist) => setCurrentView({ type: 'artist', artist })}
+              onArtistContextMenu={(e, artist) => {
+                e.preventDefault()
+                openArtistContextMenu({ x: e.pageX, y: e.pageY, artist })
+              }}
+              onEditArtist={handleEditArtistFromMenu}
+              onTrackContextMenu={(e, track) => {
+                e.preventDefault()
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+              }}
+            />
+          </>
+        )}
+
+        {currentView.type === 'artist' && (
+          <>
+            <ArtistsView
+              artists={artists}
+              selectedArtist={currentView.artist}
+              selectedArtistAlbums={artistAlbums}
+              selectedArtistTracks={tracks}
+              currentTrack={currentTrack}
+              playTrack={playTrack}
+              onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
+              onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
+              onOpenTrackAlbum={openTrackAlbumPage}
+              onAlbumContextMenu={(e, album) => {
+                e.preventDefault()
+                openAlbumContextMenu({ x: e.pageX, y: e.pageY, album })
+              }}
+              onOpenArtist={(artist) => setCurrentView({ type: 'artist', artist })}
+              onArtistContextMenu={(e, artist) => {
+                e.preventDefault()
+                openArtistContextMenu({ x: e.pageX, y: e.pageY, artist })
+              }}
+              onEditArtist={handleEditArtistFromMenu}
+              onBackToArtists={() => setCurrentView({ type: 'artists' })}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
                 openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
@@ -1085,6 +1199,14 @@ const currentAudioSrc = currentTrack
         onDelete={() => {}}
       />
 
+      <ArtistContextMenu
+        menuData={artistContextMenu}
+        onClose={() => setArtistContextMenu(null)}
+        onPlay={(artist) => void handlePlayArtist(artist)}
+        onVisit={(artist) => setCurrentView({ type: 'artist', artist })}
+        onEdit={handleEditArtistFromMenu}
+      />
+
       <AddSongsModal 
         isOpen={isAddSongsModalOpen}
         onClose={() => setIsAddSongsModalOpen(false)}
@@ -1102,6 +1224,17 @@ const currentAudioSrc = currentTrack
           initialName={currentView.playlist.name}
           initialDesc={currentView.playlist.desc ? currentView.playlist.desc : ''} 
           initialImage={currentView.playlist.cover_image_path ? currentView.playlist.cover_image_path : ''}
+        />
+      )}
+
+      {editingArtist && (
+        <EditArtistModal
+          isOpen={Boolean(editingArtist)}
+          onClose={() => setEditingArtist(null)}
+          onSave={handleEditArtist}
+          initialName={editingArtist.name}
+          initialDescription={editingArtist.description || ''}
+          initialImage={editingArtist.artist_image_path || null}
         />
       )}
 

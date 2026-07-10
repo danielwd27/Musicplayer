@@ -8,9 +8,10 @@ interface PlaylistViewProps {
   playlist: Playlist
   tracks: Track[]
   currentTrack: Track | null
-  isPlaying: boolean
   playTrack: (track: Track) => void
   onPlayTrackWithQueue?: (track: Track, index: number) => void
+  onOpenTrackAlbum: (track: Track) => void
+  onOpenTrackArtist: (track: Track) => void
   onAddSongsClick: () => void
   onEditClick: () => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
@@ -20,9 +21,10 @@ export default function PlaylistView({
   playlist, 
   tracks, 
   currentTrack, 
-  isPlaying, 
   playTrack,
   onPlayTrackWithQueue,
+  onOpenTrackAlbum,
+  onOpenTrackArtist,
   onAddSongsClick,
   onEditClick,
   onTrackContextMenu
@@ -35,7 +37,7 @@ export default function PlaylistView({
       {/* --- PLAYLIST HEADER --- */}
       <div className="header">
         <div style={{ display: 'flex', gap: '30px', marginLeft: '16px'}}>
-          <div className="playlist-image" style={{
+          <div className="card-image" style={{
           width: '200px', height: '200px', borderRadius: '8px', 
           justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
@@ -85,18 +87,44 @@ export default function PlaylistView({
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <span className='text-soft' style={{ marginRight: '20px'}}>
-                  {currentTrack?.id === track.id && isPlaying ? '▶' : index + 1}
+                <span className='text-soft track-item-index'>
+                  {currentTrack?.id === track.id ? '▶' : index + 1}
                 </span>
-                <span className='item-title'>{track.title || track.filename}</span>
-                  <span className='text-soft track-item-metadata'>
-                  <span>{track.artist}</span>
-                  <span>{track.album}</span>
-                  <span>{track.year}</span>
+                <div className="track-album-art">
+                  {track.album_image_path ? (
+                    <img
+                      src={`local://stream?path=${encodeURIComponent(track.album_image_path.replace(/\\/g, '/'))}`}
+                      alt={track.album || track.title || track.filename}
+                    />
+                  ) : (
+                    <span>🎵</span>
+                  )}
+                </div>
+                <span className='item-title' style={{width: '20%'}}>{track.title || track.filename}</span>
+                <span className='text-soft track-item-metadata'>
+                <button
+                  type="button"
+                  className="metadata-link"
+                  onClick={(e) => { e.stopPropagation(); onOpenTrackArtist(track) }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  disabled={!track.artist}
+                  title="Open artist page"
+                >
+                  {track.artist || 'Unknown Artist'}
+                </button>
+                <button
+                  type="button"
+                  className="metadata-link"
+                  onClick={(e) => { e.stopPropagation(); onOpenTrackAlbum(track) }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  disabled={!track.album}
+                  title="Open album page"
+                >
+                  {track.album || 'Unknown Album'}
+                </button>
+                <span>{track.year}</span>
               </span>
-              </div>
-              <span className='text-soft'>
+              <span className='text-soft track-duration'>
                 {formatDuration(track.duration)}
               </span>
             </div>

@@ -6,6 +6,10 @@ interface API {
   getLibrary: () => Promise<any[]>
   getAlbums: () => Promise<any[]>
   getAlbumTracks: (id: number) => Promise<any[]>
+  getArtists: () => Promise<any[]>
+  getArtistTracks: (id: number) => Promise<any[]>
+  getArtistAlbums: (id: number) => Promise<any[]>
+  updateArtist: (id: number, name: string, description: string, imagePath: string | null) => Promise<boolean>
   onScanFolder: (callback: (event: any) => void) => void
   onCreatePlaylist: (callback: (event: any) => void) => void
   onImportFile: (callback: (event: any) => void) => void

@@ -47,11 +47,7 @@ export default function EditPlaylistModal({
         <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
           <div 
             onClick={handleSelectImage}
-            className="playlist-image"
-            style={{
-              borderRadius: '8px', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0
-            }}
+            className="card-image editable"
           >
             {imagePath ? (
               <img 

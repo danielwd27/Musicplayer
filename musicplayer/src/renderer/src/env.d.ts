@@ -44,7 +44,12 @@ export interface Album {
 export interface Artist {
   id: number
   name: string;
+  sort_name?: string;
   artist_image_path?: string;
+  description?: string;
+  track_count?: number;
+  album_count?: number;
+  total_duration?: number;
 }
 
 declare global {
@@ -55,6 +60,10 @@ declare global {
       getLibrary: () => Promise<Track[]>;
       getAlbums: () => Promise<Album[]>;
       getAlbumTracks: (id: number) => Promise<Track[]>;
+      getArtists: () => Promise<Artist[]>;
+      getArtistTracks: (id: number) => Promise<Track[]>;
+      getArtistAlbums: (id: number) => Promise<Album[]>;
+      updateArtist: (id: number, name: string, description: string, imagePath: string | null) => Promise<boolean>;
       getPlaylists: () => Promise<Playlist[]>;
       getPlaylistTracks: (id: number) => Promise<Track[]>;
       onScanFolder: (callback: (event: any) => void) => void

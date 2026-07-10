@@ -7,12 +7,14 @@ interface AlbumsViewProps {
   selectedAlbum?: Album
   tracks: Track[]
   currentTrack: Track | null
-  isPlaying: boolean
   playTrack: (track: Track) => void
   onPlayTrackWithQueue?: (track: Track, index: number) => void
   onOpenAlbum: (album: Album) => void
+  onOpenAlbumArtist: (album: Album) => void
+  onOpenTrackArtist: (track: Track) => void
   onBackToAlbums?: () => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
+  onAlbumContextMenu: (e: React.MouseEvent, album: Album) => void
   onImportFiles: () => Promise<number[]>
   onImportFolder: () => Promise<number[]>
 }
@@ -22,12 +24,14 @@ export default function AlbumsView({
   selectedAlbum,
   tracks,
   currentTrack,
-  isPlaying,
   playTrack,
   onPlayTrackWithQueue,
   onOpenAlbum,
+  onOpenAlbumArtist,
+  onOpenTrackArtist,
   onBackToAlbums,
   onTrackContextMenu,
+  onAlbumContextMenu,
   onImportFiles,
   onImportFolder
 }: AlbumsViewProps) {
@@ -93,7 +97,7 @@ export default function AlbumsView({
         </div>
 
         <div className="header" style={{ justifyContent: 'flex-start', gap: '30px' }}>
-          <div className="playlist-image album-art-large">
+          <div className="card-image album-art-large">
             {selectedAlbum.cover_image_path ? (
               <img
                 src={`local://stream?path=${encodeURIComponent(selectedAlbum.cover_image_path.replace(/\\/g, '/'))}`}
@@ -107,7 +111,15 @@ export default function AlbumsView({
             <div className="text-soft">Album</div>
             <h1 style={{ fontSize: '48px', margin: '6px 0' }}>{selectedAlbum.title}</h1>
             <div className="text-soft">
-              {selectedAlbum.album_artist || 'Unknown Artist'}
+              <button
+                type="button"
+                className="metadata-link"
+                onClick={() => onOpenAlbumArtist(selectedAlbum)}
+                disabled={!selectedAlbum.album_artist}
+                title="Open artist page"
+              >
+                {selectedAlbum.album_artist || 'Unknown Artist'}
+              </button>
               {selectedAlbum.year ? ` • ${selectedAlbum.year}` : ''}
               {tracks.length > 0 && ` • ${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'}`}
               {tracks.length > 0 && ` • ${formatPlaylistDuration(totalDuration)}`}
@@ -127,18 +139,35 @@ export default function AlbumsView({
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                  <span className="text-soft" style={{ marginRight: '20px', width: '24px' }}>
-                    {currentTrack?.id === track.id && isPlaying ? '▶' : track.track_num || index + 1}
+                  <span className="text-soft track-item-index">
+                    {currentTrack?.id === track.id ? '▶' : track.track_num || index + 1}
                   </span>
-                  <span className="item-title">{track.title || track.filename}</span>
+                  <div className="track-album-art">
+                    {track.album_image_path ? (
+                      <img
+                        src={`local://stream?path=${encodeURIComponent(track.album_image_path.replace(/\\/g, '/'))}`}
+                        alt={track.album || track.title || track.filename}
+                      />
+                    ) : (
+                      <span>🎵</span>
+                    )}
+                  </div>
+                  <span className="item-title" style={{width: '20%'}}>{track.title || track.filename}</span>
                   <span className="text-soft track-item-metadata">
-                    <span>{track.artist}</span>
-                    <span>{track.genre}</span>
-                    <span>{track.year}</span>
+                  <button
+                    type="button"
+                    className="metadata-link"
+                    onClick={(e) => { e.stopPropagation(); onOpenTrackArtist(track) }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    disabled={!track.artist}
+                    title="Open artist page"
+                  >
+                    {track.artist || 'Unknown Artist'}
+                  </button>
+                  {/* <span>{track.genre}</span> */}
+                  <span>{track.year}</span>
                   </span>
-                </div>
-                <span className="text-soft">{formatDuration(track.duration)}</span>
+                <span className="text-soft track-duration">{formatDuration(track.duration)}</span>
               </div>
             ))}
           </div>
@@ -159,19 +188,33 @@ export default function AlbumsView({
       ) : (
         <div className="albums-grid">
           {albums.map((album) => (
-            <div key={album.id} className="album-card" onClick={() => onOpenAlbum(album)}>
-              <div className="playlist-image album-art">
+            <div 
+              key={album.id} 
+              className="album-card" 
+              onClick={() => onOpenAlbum(album)} 
+              onContextMenu={((e) => onAlbumContextMenu(e, album))
+            }>
+              <div className="card-image">
                 {album.cover_image_path ? (
                   <img
                     src={`local://stream?path=${encodeURIComponent(album.cover_image_path.replace(/\\/g, '/'))}`}
                     alt={album.title}
                   />
                 ) : (
-                  <span style={{ fontSize: '48px' }}>🎵</span>
+                  <span>🎵</span>
                 )}
               </div>
               <div className="item-title" title={album.title}>{album.title}</div>
-              <div className="text-soft" title={album.album_artist}>{album.album_artist || 'Unknown Artist'}</div>
+              <button
+                type="button"
+                className="metadata-link text-soft"
+                onClick={(e) => { e.stopPropagation(); onOpenAlbumArtist(album) }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                disabled={!album.album_artist}
+                title="Open artist page"
+              >
+                {album.album_artist || 'Unknown Artist'}
+              </button>
               <div className="text-soft">
                 {album.year ? `${album.year} • ` : ''}{album.track_count || 0} {(album.track_count || 0) === 1 ? 'song' : 'songs'}
               </div>

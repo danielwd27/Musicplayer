@@ -2,8 +2,8 @@ import { app, shell, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOp
 import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { initializeDatabase, insertTrack, getAllTracks, getAllAlbums, getAlbumTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
-        deletePlaylist, removeTrackFromPlaylist, deleteTrack } from './database'
+import { initializeDatabase, insertTrack, getAllTracks, getAllArtists, getArtistTracks, getArtistAlbums, updateArtist, getAllAlbums, getAlbumTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
+  deletePlaylist, removeTrackFromPlaylist, deleteTrack } from './database'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs/promises'
 import path from 'path'
@@ -168,6 +168,22 @@ app.whenReady().then(() => {
 
   ipcMain.handle('db:getAlbums', () => {
     return getAllAlbums()
+  })
+
+  ipcMain.handle('db:getArtists', () => {
+    return getAllArtists()
+  })
+
+  ipcMain.handle('db:getArtistTracks', (_, artistId: number) => {
+    return getArtistTracks(artistId)
+  })
+
+  ipcMain.handle('db:getArtistAlbums', (_, artistId: number) => {
+    return getArtistAlbums(artistId)
+  })
+
+  ipcMain.handle('db:updateArtist', (_, id: number, name: string, description: string, imagePath: string | null) => {
+    return updateArtist(id, name, description, imagePath)
   })
 
   ipcMain.handle('db:getAlbumTracks', (_, albumId: number) => {

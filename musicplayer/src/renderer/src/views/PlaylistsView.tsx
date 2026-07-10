@@ -22,29 +22,31 @@ export default function PlaylistsView({ playlists, onOpenPlaylist, onNewPlaylist
       {playlists.length === 0 ? (
         <p style={{color: 'var(--text-3)'}}>You haven't created any playlists yet.</p>
       ) : (
-        <div className="playlists-grid">
+        <div className="albums-grid">
           {playlists.map(pl => (
             <div 
               key={pl.id} 
-              className="playlist-card"
+              className="album-card"
               onClick={() => onOpenPlaylist(pl)}
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => {
                 e.preventDefault()
                 onContextMenu?.(e, pl)
               }}
-            >
+            >                
+            <div className='card-image'>
               {pl.cover_image_path ? (
-                <img 
-                  src={`local://stream?path=${encodeURIComponent(pl.cover_image_path.replace(/\\/g, '/'))}`} 
-                  className="playlist-image" 
-                  style={{ objectFit: 'cover', padding: 0 }} 
-                  alt={pl.name}
-                />
-              ) : (
-                <div className="playlist-image">
+                  <img 
+                    src={`local://stream?path=${encodeURIComponent(pl.cover_image_path.replace(/\\/g, '/'))}`} 
+                    // className="card-image" 
+                    alt={pl.name}
+                  />
+                ) : (
+                <div>
                   🎵
                 </div>
               )}
+              </div>
+
               <h3 style={{ width: '80%', overflow:'hidden', textOverflow:'ellipsis' }}>{pl.name}</h3>
             </div>
           ))}
