@@ -2,12 +2,15 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Album, Track } from '../env'
 import { formatDuration, formatPlaylistDuration } from '@renderer/utilities/formatting'
 
+type AlbumSortMode = 'recently-imported' | 'release-year' | 'genre'
+
 interface AlbumsViewProps {
   albums: Album[]
   selectedAlbum?: Album
   tracks: Track[]
   currentTrack: Track | null
   playTrack: (track: Track) => void
+  onSelectTrack: (track: Track) => void
   onPlayTrackWithQueue?: (track: Track, index: number) => void
   onOpenAlbum: (album: Album) => void
   onOpenAlbumArtist: (album: Album) => void
@@ -25,6 +28,7 @@ export default function AlbumsView({
   tracks,
   currentTrack,
   playTrack,
+  onSelectTrack,
   onPlayTrackWithQueue,
   onOpenAlbum,
   onOpenAlbumArtist,
@@ -36,9 +40,100 @@ export default function AlbumsView({
   onImportFolder
 }: AlbumsViewProps) {
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false)
+  const [albumSortMode, setAlbumSortMode] = useState<AlbumSortMode | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const totalDuration = tracks.reduce((sum, track) => sum + (track.duration || 0), 0)
+
+  const sortedAlbums = albums
+    .toSorted((a, b) => {
+      if (albumSortMode === 'recently-imported') {
+        return new Date(b.imported_at || 0).getTime() - new Date(a.imported_at || 0).getTime()
+      }
+
+      if (albumSortMode === 'release-year') {
+        return (b.year ?? 0) - (a.year ?? 0) || a.title.localeCompare(b.title)
+      }
+
+      if (albumSortMode === 'genre') {
+        const genreCompare = (a.genre || 'Unknown Genre').localeCompare(b.genre || 'Unknown Genre')
+        return genreCompare || a.title.localeCompare(b.title)
+      }
+
+      return a.title.localeCompare(b.title)
+    })
+
+  const getAlbumGroupLabel = (album: Album) => {
+    if (albumSortMode === 'recently-imported') {
+      const importedDate = album.imported_at ? new Date(album.imported_at) : null
+      return importedDate && !Number.isNaN(importedDate.getTime())
+        ? importedDate.toLocaleDateString()
+        : 'Unknown Import Date'
+    }
+
+    if (albumSortMode === 'release-year') {
+      return album.year ? String(album.year) : 'Unknown Year'
+    }
+
+    if (albumSortMode === 'genre') {
+      return album.genre?.trim() || 'Unknown Genre'
+    }
+
+    return ''
+  }
+
+  const albumGroups = sortedAlbums.reduce<Array<{ label: string; albums: Album[] }>>((groups, album) => {
+    if (!albumSortMode) return groups
+
+    const label = getAlbumGroupLabel(album)
+    const existingGroup = groups.find((group) => group.label === label)
+
+    if (existingGroup) {
+      existingGroup.albums.push(album)
+    } else {
+      groups.push({ label, albums: [album] })
+    }
+
+    return groups
+  }, [])
+
+  const toggleAlbumSortMode = (mode: AlbumSortMode) => {
+    setAlbumSortMode((prev) => prev === mode ? null : mode)
+  }
+
+  const renderAlbumCard = (album: Album) => (
+    <div 
+      key={album.id} 
+      className="album-card" 
+      onClick={() => onOpenAlbum(album)} 
+      onContextMenu={((e) => onAlbumContextMenu(e, album))
+    }>
+      <div className="card-image">
+        {album.cover_image_path ? (
+          <img
+            src={`local://stream?path=${encodeURIComponent(album.cover_image_path.replace(/\\/g, '/'))}`}
+            alt={album.title}
+          />
+        ) : (
+          <span>🎵</span>
+        )}
+      </div>
+      <div className="item-title" title={album.title}>{album.title}</div>
+      <button
+        type="button"
+        className="metadata-link text-soft"
+        onClick={(e) => { e.stopPropagation(); onOpenAlbumArtist(album) }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        disabled={!album.album_artist}
+        title="Open artist page"
+      >
+        {album.album_artist || 'Unknown Artist'}
+      </button>
+      <div className="text-soft">
+        {album.year ? `${album.year} • ` : ''}{album.track_count || 0} {(album.track_count || 0) === 1 ? 'song' : 'songs'}
+      </div>
+    </div>
+  )
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -135,6 +230,7 @@ export default function AlbumsView({
               <div
                 key={`${track.id}-${index}`}
                 className={`track-item ${currentTrack?.id === track.id ? 'active' : ''}`}
+                onClick={() => onSelectTrack(track)}
                 onDoubleClick={() => onPlayTrackWithQueue ? onPlayTrackWithQueue(track, index) : playTrack(track)}
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -180,46 +276,46 @@ export default function AlbumsView({
     <>
       <div className="header">
         <h1>Your Albums</h1>
-        {renderImportButton()}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            className={albumSortMode === 'recently-imported' ? 'btn-primary' : 'btn-light'}
+            onClick={() => toggleAlbumSortMode('recently-imported')}
+          >
+            Recent
+          </button>
+          <button
+            className={albumSortMode === 'release-year' ? 'btn-primary' : 'btn-light'}
+            onClick={() => toggleAlbumSortMode('release-year')}
+          >
+            Year
+          </button>
+          <button
+            className={albumSortMode === 'genre' ? 'btn-primary' : 'btn-light'}
+            onClick={() => toggleAlbumSortMode('genre')}
+          >
+            Genre
+          </button>
+
+          {renderImportButton()}
+        </div>
       </div>
 
       {albums.length === 0 ? (
         <p style={{ color: 'var(--text-3)' }}>You haven't imported any albums yet.</p>
+      ) : albumSortMode ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+          {albumGroups.map(({ label, albums: groupAlbums }) => (
+            <section key={label}>
+              <h2 className="text-soft" style={{ margin: '0 0 12px', fontSize: '20px' }}>{label}</h2>
+              <div className="albums-grid">
+                {groupAlbums.map(renderAlbumCard)}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
         <div className="albums-grid">
-          {albums.map((album) => (
-            <div 
-              key={album.id} 
-              className="album-card" 
-              onClick={() => onOpenAlbum(album)} 
-              onContextMenu={((e) => onAlbumContextMenu(e, album))
-            }>
-              <div className="card-image">
-                {album.cover_image_path ? (
-                  <img
-                    src={`local://stream?path=${encodeURIComponent(album.cover_image_path.replace(/\\/g, '/'))}`}
-                    alt={album.title}
-                  />
-                ) : (
-                  <span>🎵</span>
-                )}
-              </div>
-              <div className="item-title" title={album.title}>{album.title}</div>
-              <button
-                type="button"
-                className="metadata-link text-soft"
-                onClick={(e) => { e.stopPropagation(); onOpenAlbumArtist(album) }}
-                onDoubleClick={(e) => e.stopPropagation()}
-                disabled={!album.album_artist}
-                title="Open artist page"
-              >
-                {album.album_artist || 'Unknown Artist'}
-              </button>
-              <div className="text-soft">
-                {album.year ? `${album.year} • ` : ''}{album.track_count || 0} {(album.track_count || 0) === 1 ? 'song' : 'songs'}
-              </div>
-            </div>
-          ))}
+          {sortedAlbums.map(renderAlbumCard)}
         </div>
       )}
     </>

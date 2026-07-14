@@ -28,6 +28,8 @@ type ViewState =
   | { type: 'playlists'}
   | { type: 'playlist', playlist: Playlist}
 
+type RepeatMode = 'off' | 'all' | 'one'
+
 function App() {
   const [tracks, setTracks] = useState<Track[]>([]) // tracks currently in view
   const [libraryCount, setLibraryCount] = useState(0) // total library track count
@@ -56,6 +58,8 @@ function App() {
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false)
   const [currentView, setCurrentView] = useState<ViewState>({ type: 'library' })
   const [isShuffled, setIsShuffled] = useState(false)
+  const [unshuffledQueue, setUnshuffledQueue] = useState<Track[] | null>(null)
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
 
   // Audioplayer states
   const [isPlaying, setIsPlaying] = useState(false)
@@ -233,9 +237,9 @@ function App() {
   }
 
 
-  const handleCreatePlaylist = async (name, desc, coverImagePath) => {
+  const handleCreatePlaylist = async (name: string, desc: string, tag: string, coverImagePath: string | null) => {
     try {
-      const playlist = await window.api.createPlaylist(name, desc, coverImagePath)
+      const playlist = await window.api.createPlaylist(name, desc, tag, coverImagePath)
 
       const updatedPlaylists = await window.api.getPlaylists()
       setPlaylists(updatedPlaylists || [])
@@ -262,11 +266,11 @@ function App() {
     }
   }
 
-  const handleEditPlaylist = async (name: string, desc: string, coverImagePath: string | null) => {
+  const handleEditPlaylist = async (name: string, desc: string, tag: string, coverImagePath: string | null) => {
     if (currentView.type !== 'playlist') return
 
     try {
-      await window.api.updatePlaylist(currentView.playlist.id, name, desc, coverImagePath)
+      await window.api.updatePlaylist(currentView.playlist.id, name, desc, tag, coverImagePath)
       
       const updatedPlaylists = await window.api.getPlaylists()
       setPlaylists(updatedPlaylists || [])
@@ -278,6 +282,7 @@ function App() {
           ...currentView.playlist,
           name,
           desc,
+          tag,
           cover_image_path: coverImagePath ?? undefined
         }
       })
@@ -352,7 +357,28 @@ function App() {
       setSelectedTrack(plTracks[0] ?? null)
       setCurrentTime(0)
       setDuration(0)
+      setUnshuffledQueue(null)
+      setIsShuffled(false)
     }
+  }
+
+  const handleShuffleTracks = (sourceTracks: Track[]) => {
+    if (sourceTracks.length === 0) return
+
+    const shuffledTracks = [...sourceTracks]
+
+    // Fisher-Yates Algorithm :)
+    for (let i = shuffledTracks.length - 1; i > 0; --i) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[shuffledTracks[i], shuffledTracks[j]] = [shuffledTracks[j], shuffledTracks[i]]
+    }
+
+    const [firstTrack, ...nextQueue] = shuffledTracks
+
+    setHistoryQueue([])
+    startPlaybackWithQueue(firstTrack, nextQueue)
+    setUnshuffledQueue(sourceTracks.filter((track) => track !== firstTrack))
+    setIsShuffled(true)
   }
 
   const handlePlayArtist = async (artist: Artist) => {
@@ -529,12 +555,36 @@ function App() {
 
   // Queue Controls
 
+  const updateTrackListenCount = (trackId: number, listenCount: number) => {
+    const updateTrack = (track: Track) =>
+      track.id === trackId ? { ...track, num_listens: listenCount } : track
+
+    setTracks((prev) => prev.map(updateTrack))
+    setAllTracks((prev) => prev.map(updateTrack))
+    setCurrentTrack((prev) => prev ? updateTrack(prev) : null)
+    setSelectedTrack((prev) => prev ? updateTrack(prev) : null)
+  }
+
   const startPlaybackWithQueue = (track: Track | null, nextQueue: Track[]) => {
     setPlaybackQueue(nextQueue)
-    setCurrentTrack(track)
-    setSelectedTrack(track)
     if(track) {
-      ++track.num_listens;
+      const optimisticListenCount = (track.num_listens ?? 0) + 1
+      const listenedTrack = { ...track, num_listens: optimisticListenCount }
+
+      setCurrentTrack(listenedTrack)
+      setSelectedTrack(listenedTrack)
+      updateTrackListenCount(track.id, optimisticListenCount)
+
+      window.api.incrementTrackListenCount(track.id).then((listenCount) => {
+        if (listenCount !== null) {
+          updateTrackListenCount(track.id, listenCount)
+        }
+      }).catch((error) => {
+        console.error('Failed to update listen count:', error)
+      })
+    } else {
+      setCurrentTrack(null)
+      setSelectedTrack(null)
     }
     setCurrentTime(0)
     setDuration(0)
@@ -543,10 +593,14 @@ function App() {
   // function for ADDING track to the front of the queue
   const handlePlayNext = (track: Track) => {
     setPlaybackQueue((prev) => [track, ...prev])
+    setUnshuffledQueue(null)
+    setIsShuffled(false)
   }
 
   const handleAddToQueue = (track: Track) => {
     setPlaybackQueue((prev) => [...prev, track])
+    setUnshuffledQueue(null)
+    setIsShuffled(false)
   }
 
   const handleReorderQueue = (fromIndex: number, toIndex: number) => {
@@ -565,8 +619,23 @@ function App() {
 
       next.splice(insertionIndex, 0, movedTrack)
       setIsShuffled(false)
+      setUnshuffledQueue(null)
       return next
     })
+  }
+
+  const handleRemoveTrackFromQueue = (index: number) => {
+    setPlaybackQueue((prev) => {
+      if (index < 0 || index >= prev.length) {
+        return prev
+      }
+
+      const next = [...prev]
+      next.splice(index, 1)
+      return next
+    })
+    setUnshuffledQueue(null)
+    setIsShuffled(false)
   }
 
   const handleRemoveTrackFromPlaylist = async (trackId: number) => {
@@ -612,7 +681,9 @@ function App() {
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setDuration(currentTrack?.duration ?? 0)
+      const audioDuration = audioRef.current.duration
+      const fallbackDuration = currentTrack?.duration ?? 0
+      setDuration(Number.isFinite(audioDuration) && audioDuration > 0 ? audioDuration : fallbackDuration)
     }
   }
 
@@ -629,16 +700,38 @@ function App() {
     return () => clearInterval(interval)
   }, [isPlaying, isSeeking])
 
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value)
+  const seekTo = (time: number) => {
+    if (!Number.isFinite(time)) return
+
+    const audioDuration = audioRef.current?.duration ?? 0
+    const seekDuration = Number.isFinite(audioDuration) && audioDuration > 0 ? audioDuration : duration
+    if (!seekDuration) return
+
+    const newTime = Math.max(0, Math.min(time, seekDuration))
     setCurrentTime(newTime)
     if (audioRef.current) {
       audioRef.current.currentTime = newTime
     }
   }
 
-  const handleSliderMouseDown = () => setIsSeeking(true)
-  const handleSliderMouseUp = () => setIsSeeking(false)
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    seekTo(e.currentTarget.valueAsNumber)
+  }
+
+  const handleSliderInput = (e: React.FormEvent<HTMLInputElement>) => {
+    seekTo(e.currentTarget.valueAsNumber)
+  }
+
+  const handleSliderPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    setIsSeeking(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleSliderPointerUp = (e: React.PointerEvent<HTMLInputElement>) => {
+    seekTo(e.currentTarget.valueAsNumber)
+    setIsSeeking(false)
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value) / 100
@@ -695,14 +788,43 @@ const currentAudioSrc = currentTrack
     }
   }
 
+  const handleTrackEnded = () => {
+    if (repeatMode === 'one' && currentTrack) {
+      setCurrentTime(0)
+
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0
+        audioRef.current.play().catch((err) => console.error('Playback error:', err))
+      }
+
+      return
+    }
+
+    playNext()
+  }
+
   // play next button
   const playNext = () => {
+    const completedQueue = currentTrack ? [...historyQueue, currentTrack] : historyQueue
+
     if (currentTrack) {
       setHistoryQueue((prev) => [...prev, currentTrack])
     }
 
     const [nextTrack, ...remainingQueue] = playbackQueue
     if (!nextTrack) {
+      if (repeatMode === 'all' && completedQueue.length > 0) {
+        const [firstTrack, ...rest] = completedQueue
+
+        setHistoryQueue([])
+        setPlaybackQueue(rest)
+        setCurrentTrack(firstTrack)
+        setSelectedTrack(firstTrack)
+        setCurrentTime(0)
+        setDuration(0)
+        return
+      }
+
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -719,6 +841,14 @@ const currentAudioSrc = currentTrack
     setSelectedTrack(nextTrack);
     setCurrentTime(0);
     setDuration(0);
+  }
+
+  const toggleRepeatMode = () => {
+    setRepeatMode((prev) => {
+      if (prev === 'off') return 'all'
+      if (prev === 'all') return 'one'
+      return 'off'
+    })
   }
 
   const playPrev = () => {
@@ -751,7 +881,19 @@ const currentAudioSrc = currentTrack
   }
 
   const shuffle = () => {
+    if (isShuffled) {
+      if (unshuffledQueue) {
+        setPlaybackQueue(unshuffledQueue)
+      }
+
+      setUnshuffledQueue(null)
+      setIsShuffled(false)
+      return
+    }
+
     setPlaybackQueue((prev) => {
+      setUnshuffledQueue(prev)
+
       const tracks = [...prev]
       // Fisher-Yates Algorithm :)
       for (let i: number = tracks.length - 1; i > 0; --i) {
@@ -765,17 +907,21 @@ const currentAudioSrc = currentTrack
 
   const queueItems = playbackQueue
   const sliderRange = (volume*100 + 5) / (110) * 100;
+  const playlistTags = Array.from(new Set(playlists.flatMap((playlist) => (
+    playlist.tag?.split(',').map((tag) => tag.trim()).filter(Boolean) || []
+  )))).sort((a, b) => a.localeCompare(b))
 
   return (
     <div className="app-container">
       <nav className="sidebar">
-        <h2>Library</h2>
-        <ul>
-          <li onClick={() => setCurrentView({type: 'library'})}>
-            <svg viewBox="-5.5 0 32 32" style={{stroke: 'transparent'}}><path d="M5.688 9.656v10.906c-.469-.125-.969-.219-1.406-.219-1 0-2.031.344-2.875.906S.001 22.718.001 23.78c0 1.125.563 1.969 1.406 2.531s1.875.875 2.875.875c.938 0 2-.313 2.844-.875s1.375-1.406 1.375-2.531V12.342l9.531-2.719v7.531a5.5 5.5 0 0 0-1.438-.188c-.969 0-2.031.281-2.875.844s-1.375 1.469-1.375 2.531c0 1.125.531 2 1.375 2.531.844.563 1.906.906 2.875.906.938 0 2.031-.344 2.875-.906.875-.531 1.406-1.406 1.406-2.531V5.935c0-.688-.469-1.156-1.156-1.156-.063 0-.438.125-1.031.281-1.25.344-3.125.875-5.25 1.5-1.094.281-2.063.594-3.031.844-.938.281-1.75.563-2.469.75-.75.219-1.219.344-1.406.406-.5.156-.844.594-.844 1.094z"/></svg>
-            All Songs ({libraryCount})</li>
-          <li style={{padding:'0px'}}>
-            <li style={{width: '100%'}} onClick={() => setCurrentView({type: 'playlists'})}>
+        <div className="sidebar-scroll">
+          <h2>Library</h2>
+          <ul>
+            <li onClick={() => setCurrentView({type: 'library'})}>
+              <svg viewBox="-5.5 0 32 32" style={{stroke: 'transparent'}}><path d="M5.688 9.656v10.906c-.469-.125-.969-.219-1.406-.219-1 0-2.031.344-2.875.906S.001 22.718.001 23.78c0 1.125.563 1.969 1.406 2.531s1.875.875 2.875.875c.938 0 2-.313 2.844-.875s1.375-1.406 1.375-2.531V12.342l9.531-2.719v7.531a5.5 5.5 0 0 0-1.438-.188c-.969 0-2.031.281-2.875.844s-1.375 1.469-1.375 2.531c0 1.125.531 2 1.375 2.531.844.563 1.906.906 2.875.906.938 0 2.031-.344 2.875-.906.875-.531 1.406-1.406 1.406-2.531V5.935c0-.688-.469-1.156-1.156-1.156-.063 0-.438.125-1.031.281-1.25.344-3.125.875-5.25 1.5-1.094.281-2.063.594-3.031.844-.938.281-1.75.563-2.469.75-.75.219-1.219.344-1.406.406-.5.156-.844.594-.844 1.094z"/></svg>
+              All Songs ({libraryCount})</li>
+            <li style={{padding:'0px'}}>
+              <li style={{width: '100%'}} onClick={() => setCurrentView({type: 'playlists'})}>
               <svg viewBox="0 0 24 24" fill="none" ><path d="M4 7h16M5 4h14M6.896 20h10.208c1.024 0 1.535 0 1.94-.192a2 2 0 0 0 .86-.778c.232-.385.283-.894.384-1.912l.448-4.48c.092-.914.138-1.37-.012-1.724a1.5 1.5 0 0 0-.66-.73C19.727 10 19.267 10 18.348 10H5.652c-.919 0-1.378 0-1.715.184a1.5 1.5 0 0 0-.66.73c-.15.353-.104.81-.013 1.725l.448 4.48c.102 1.017.153 1.526.384 1.911a2 2 0 0 0 .86.778c.406.192.917.192 1.94.192M15 15c0 1.105-1.343 2-3 2-1.656 0-3-.895-3-2s1.344-2 3-2c1.657 0 3 .895 3 2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Playlists ({playlists.length})
             </li>
@@ -819,9 +965,10 @@ const currentAudioSrc = currentTrack
           </li>
           <li onClick={() => setCurrentView({type: 'artists'})}>
             <svg viewBox="0 0 512 512" style={{padding:'2px'}}><path d="M470.694 41.306C444.056 14.669 408.64 0 370.97 0s-73.086 14.669-99.723 41.306c-26.638 26.635-41.307 62.052-41.307 99.723 0 1.818.045 3.631.113 5.438L44.616 363.886c-21.623 24.583-23.844 60.029-7.31 86.872L0 488.067 23.934 512l37.313-37.314c11.738 7.23 25.113 10.889 38.516 10.889 17.227-.001 34.485-6.017 48.309-18.157l217.459-185.472c1.807.069 3.619.114 5.438.114 37.662 0 73.07-14.664 99.706-41.291l.019-.017c26.635-26.635 41.305-62.051 41.306-99.722 0-37.672-14.669-73.087-41.306-99.724M126.01 441.749l-.211.183c-15.575 13.734-39.294 12.969-53.999-1.734-14.707-14.705-15.467-38.427-1.732-54L238.272 188.99c6.939 19.238 18.086 36.872 32.975 51.761 14.891 14.891 32.525 26.037 51.761 32.978zm244.959-193.537c-28.629 0-55.544-11.15-75.788-31.394s-31.393-47.16-31.393-75.789c0-8.144.905-16.147 2.662-23.898 10.265 25.172 28.821 51.911 52.665 75.754s50.582 42.4 75.755 52.666a108 108 0 0 1-23.901 2.661m75.791-31.394c-5.438 5.438-19.232 4.912-36-1.376-21.578-8.092-46.258-25.037-67.712-46.49-21.453-21.453-38.398-46.134-46.49-67.712-6.288-16.767-6.815-30.562-1.376-36 20.244-20.243 47.159-31.392 75.789-31.392s55.545 11.149 75.791 31.392c20.243 20.244 31.392 47.16 31.392 75.79-.001 28.629-11.15 55.544-31.394 75.788"/><path d="m191.47 296.6 47.866-47.867 23.934 23.934-47.867 47.867z"/></svg>
-            Artists ({artists.length})
-          </li>
-        </ul>
+              Artists ({artists.length})
+            </li>
+          </ul>
+        </div>
         {selectedTrack ? <div className='info-container'> 
           <div className='item-title'>{selectedTrack?.title || selectedTrack?.filename}</div>
           {selectedTrack?.album ?
@@ -845,6 +992,7 @@ const currentAudioSrc = currentTrack
             historyQueue={historyQueue}
             currentTrack={currentTrack} 
             onReorderQueue={handleReorderQueue}
+            onSelectTrack={setSelectedTrack}
             onPlayTrack={(index) => {
               const queueTrack = queueItems[index]
               if (queueTrack) {
@@ -855,9 +1003,9 @@ const currentAudioSrc = currentTrack
               }
             }}
 
-            onContextMenu={(e, track) => {
+            onContextMenu={(e, track, index) => {
               e.preventDefault()
-              openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+              openTrackContextMenu({ x: e.pageX, y: e.pageY, track, queueIndex: index, source: 'queue' })
             }}
             onClear={handleClearQueueOrHistory}
           />
@@ -869,7 +1017,7 @@ const currentAudioSrc = currentTrack
         <audio 
           ref={audioRef} 
           src={currentAudioSrc} 
-          onEnded={playNext}
+          onEnded={handleTrackEnded}
           onLoadedMetadata={handleLoadedMetadata}
         />
         <button className='control-btn' style={{ fill: 'transparent', padding: '2px', marginRight: '6px'}} onClick={toggleMute}>
@@ -949,8 +1097,22 @@ const currentAudioSrc = currentTrack
               {currentTrack?.album ? currentTrack.album : 'Unknown Album'}
             </button>
           </div>
-          <button className="btn control-btn repeat-btn" style={{ padding: '2px'}}>
-            <svg viewBox="0 0 24 24" fill="none"><g clip-path="url(#a)" stroke-width="2" stroke-linecap="round"><path d="m19 5 2 2m0 0-2 2m2-2H7M5 19l-2-2m0 0 2-2m-2 2h14" stroke-linejoin="round"/><path d="M3 11a4 4 0 0 1 4-4m14 6a4 4 0 0 1-4 4"/></g></svg>
+          <button
+            className="btn control-btn repeat-btn"
+            onClick={toggleRepeatMode}
+            title={repeatMode === 'off' ? 'Repeat off' : repeatMode === 'all' ? 'Repeat all' : 'Repeat one'}
+            style={{
+              padding: '2px',
+              position: 'relative',
+              backgroundColor: repeatMode !== 'off' ? 'var(--green-3)' : ''
+            }}
+          >
+            {(repeatMode === 'off' || repeatMode === 'all') && (
+                          <svg viewBox="0 0 24 24" fill="none"><g clip-path="url(#a)" stroke-width="2" stroke-linecap="round"><path d="m19 5 2 2m0 0-2 2m2-2H7M5 19l-2-2m0 0 2-2m-2 2h14" stroke-linejoin="round"/><path d="M3 11a4 4 0 0 1 4-4m14 6a4 4 0 0 1-4 4"/></g></svg>
+            )}
+            {repeatMode === 'one' && (
+              <svg viewBox="0 0 24 24" fill="none"><path d="M21 9V4l-2 1m-4 2H7M5 19l-2-2m0 0 2-2m-2 2h14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11a4 4 0 0 1 4-4m14 6a4 4 0 0 1-4 4" stroke-width="2" stroke-linecap="round"/></svg>
+            )}
           </button>
           <span className="player-time player-time-current">{formatDuration(currentTime)}</span>
           <input 
@@ -959,9 +1121,12 @@ const currentAudioSrc = currentTrack
             min="0" 
             max={duration} 
             value={currentTime}
+            onInput={handleSliderInput}
             onChange={handleSliderChange}
-            onMouseDown={handleSliderMouseDown}
-            onMouseUp={handleSliderMouseUp}
+            onPointerDown={handleSliderPointerDown}
+            onPointerUp={handleSliderPointerUp}
+            onPointerCancel={() => setIsSeeking(false)}
+            onBlur={() => setIsSeeking(false)}
             style={{
               background: `linear-gradient(to right, var(--gray-1) 0%, var(--gray-1) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, var(--gray-2) ${duration > 0 ? (currentTime / duration) * 100 : 0}%, var(--gray-2) 100%)`
             }}
@@ -989,6 +1154,7 @@ const currentAudioSrc = currentTrack
             playlists={playlists}
             albums={albums}
             onPlayTrack={(track) => playTrack(track)}
+            onSelectTrack={setSelectedTrack}
             onPlayPlaylist={(playlist) => handlePlayPlaylist(playlist)}
             onClickPlaylist={(playlist) => setCurrentView({ type: 'playlist', playlist: playlist })}
             onClickAlbum={(album) => setCurrentView({ type: 'album', album })}
@@ -1009,19 +1175,21 @@ const currentAudioSrc = currentTrack
       </header>
 
       <main className="main-content">
+        <div className="main-content-scroll">
         {currentView.type === 'library' && (
           <>
             <LibraryView 
               tracks={tracks} 
               currentTrack={currentTrack} 
               playTrack={playTrack} 
+              onSelectTrack={setSelectedTrack}
               onOpenTrackAlbum={openTrackAlbumPage}
               onOpenTrackArtist={openTrackArtistPage}
               onImportFiles={handleScanFiles}
               onImportFolder={handleScanFolder}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
               }}
             />
           </>
@@ -1047,7 +1215,9 @@ const currentAudioSrc = currentTrack
             tracks={tracks} 
             currentTrack={currentTrack} 
             playTrack={playTrack} 
+            onSelectTrack={setSelectedTrack}
             onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
+            onShufflePlaylist={handleShuffleTracks}
             onOpenTrackAlbum={openTrackAlbumPage}
             onOpenTrackArtist={openTrackArtistPage}
             onAddSongsClick={() => setIsAddSongsModalOpen(true)}
@@ -1067,6 +1237,7 @@ const currentAudioSrc = currentTrack
               tracks={tracks} 
               currentTrack={currentTrack} 
               playTrack={playTrack} 
+              onSelectTrack={setSelectedTrack}
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
               onOpenAlbumArtist={openAlbumArtistPage}
               onOpenTrackArtist={openTrackArtistPage}
@@ -1074,7 +1245,7 @@ const currentAudioSrc = currentTrack
               onImportFolder={handleScanFolder}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
               }}
               onAlbumContextMenu={(e, album) => {
                 e.preventDefault()
@@ -1092,6 +1263,7 @@ const currentAudioSrc = currentTrack
               tracks={tracks} 
               currentTrack={currentTrack} 
               playTrack={playTrack} 
+              onSelectTrack={setSelectedTrack}
               onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
               onOpenAlbumArtist={openAlbumArtistPage}
@@ -1101,7 +1273,7 @@ const currentAudioSrc = currentTrack
               onImportFolder={handleScanFolder}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
               }}
               onAlbumContextMenu={(e, album) => {
                 e.preventDefault()
@@ -1119,6 +1291,7 @@ const currentAudioSrc = currentTrack
               selectedArtistTracks={[]}
               currentTrack={currentTrack}
               playTrack={playTrack}
+              onSelectTrack={setSelectedTrack}
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
               onOpenTrackAlbum={openTrackAlbumPage}
               onAlbumContextMenu={(e, album) => {
@@ -1133,7 +1306,7 @@ const currentAudioSrc = currentTrack
               onEditArtist={handleEditArtistFromMenu}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
               }}
             />
           </>
@@ -1148,6 +1321,7 @@ const currentAudioSrc = currentTrack
               selectedArtistTracks={tracks}
               currentTrack={currentTrack}
               playTrack={playTrack}
+              onSelectTrack={setSelectedTrack}
               onPlayTrackWithQueue={(track, index) => playTrackWithFollowingTracks(track, tracks, index)}
               onOpenAlbum={(album) => setCurrentView({ type: 'album', album })}
               onOpenTrackAlbum={openTrackAlbumPage}
@@ -1164,11 +1338,12 @@ const currentAudioSrc = currentTrack
               onBackToArtists={() => setCurrentView({ type: 'artists' })}
               onTrackContextMenu={(e, track) => {
                 e.preventDefault()
-                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'queue' })
+                openTrackContextMenu({ x: e.pageX, y: e.pageY, track, source: 'library' })
               }}
             />
           </>
         )}
+        </div>
       </main>
 
       <TrackContextMenu 
@@ -1179,7 +1354,10 @@ const currentAudioSrc = currentTrack
         playlists={playlists}
         onAddToPlaylist={handleAddToPlaylist}
         onRemoveFromPlaylist={handleRemoveTrackFromPlaylist}
+        onRemoveFromQueue={handleRemoveTrackFromQueue}
         onDeleteFromLibrary={handleDeleteTrackFromLibrary}
+        onOpenArtist={openTrackArtistPage}
+        onOpenAlbum={openTrackAlbumPage}
       />
 
       <PlaylistContextMenu 
@@ -1223,7 +1401,9 @@ const currentAudioSrc = currentTrack
           onSave={handleEditPlaylist}
           initialName={currentView.playlist.name}
           initialDesc={currentView.playlist.desc ? currentView.playlist.desc : ''} 
+          initialTag={currentView.playlist.tag ? currentView.playlist.tag : ''}
           initialImage={currentView.playlist.cover_image_path ? currentView.playlist.cover_image_path : ''}
+          availableTags={playlistTags}
         />
       )}
 
@@ -1243,6 +1423,7 @@ const currentAudioSrc = currentTrack
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onCreate={handleCreatePlaylist} 
+        availableTags={playlistTags}
       />
       )}
     </div>

@@ -42,6 +42,7 @@ export function initializeDatabase() {
       genre TEXT,
       cover_image_path TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(title, album_artist_id),
       FOREIGN KEY (album_artist_id) REFERENCES artists(id) ON DELETE SET NULL
     );
@@ -68,6 +69,7 @@ export function initializeDatabase() {
       track_num INTEGER,
       disc_num INTEGER,
       album_image_path TEXT,
+      imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE SET NULL,
       FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
     );
@@ -78,6 +80,7 @@ export function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       desc TEXT,
+      tag TEXT,
       cover_image_path TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -98,6 +101,7 @@ export function initializeDatabase() {
   ensureColumnExists('artists', 'sort_name', 'sort_name TEXT')
   ensureColumnExists('artists', 'image_path', 'image_path TEXT')
   ensureColumnExists('artists', 'description', 'description TEXT')
+  ensureColumnExists('playlists', 'tag', 'tag TEXT')
   ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
   ensureColumnExists('tracks', 'year', 'year INTEGER')
   ensureColumnExists('tracks', 'album_artist', 'album_artist TEXT')
@@ -110,6 +114,13 @@ export function initializeDatabase() {
   ensureColumnExists('tracks', 'track_num', 'track_num INTEGER')
   ensureColumnExists('tracks', 'disc_num', 'disc_num INTEGER')
   ensureColumnExists('tracks', 'album_image_path', 'album_image_path TEXT')
+  ensureColumnExists('tracks', 'imported_at', 'imported_at DATETIME')
+  ensureColumnExists('albums', 'imported_at', 'imported_at DATETIME')
+
+  db.exec(`
+    UPDATE tracks SET imported_at = CURRENT_TIMESTAMP WHERE imported_at IS NULL;
+    UPDATE albums SET imported_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE imported_at IS NULL;
+  `)
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_tracks_artist_id ON tracks(artist_id);
@@ -162,8 +173,8 @@ export function findOrCreateAlbum(
   const albumTitle = normalizeMusicName(title, 'Unknown Album')
 
   const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO albums (title, album_artist_id, year, genre, cover_image_path)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO albums (title, album_artist_id, year, genre, cover_image_path, imported_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `)
   insertStmt.run(albumTitle, albumArtistId, year ?? null, genre || null, coverImagePath || null)
 
@@ -225,9 +236,10 @@ export function insertTrack(
       bit_rate,
       track_num,
       disc_num,
-      album_image_path
+      album_image_path,
+      imported_at
     ) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(file_path) DO UPDATE SET
       filename = excluded.filename,
       duration = excluded.duration,
@@ -326,6 +338,19 @@ export function getAllTracks() {
   return stmt.all()
 }
 
+export function incrementTrackListenCount(trackId: number) {
+  const updateStmt = db.prepare('UPDATE tracks SET num_listens = COALESCE(num_listens, 0) + 1 WHERE id = ?')
+  const info = updateStmt.run(trackId)
+
+  if (info.changes === 0) {
+    return null
+  }
+
+  const selectStmt = db.prepare('SELECT num_listens FROM tracks WHERE id = ?')
+  const track = selectStmt.get(trackId) as { num_listens: number } | undefined
+  return track?.num_listens ?? null
+}
+
 // --- ARTIST FUNCTIONS ---
 
 export function getAllArtists() {
@@ -384,6 +409,7 @@ export function getArtistAlbums(artistId: number) {
       albums.year,
       albums.genre,
       albums.cover_image_path,
+      albums.imported_at,
       COUNT(tracks.id) AS track_count,
       COALESCE(SUM(tracks.duration), 0) AS total_duration
     FROM albums
@@ -419,6 +445,7 @@ export function getAllAlbums() {
       albums.year,
       albums.genre,
       albums.cover_image_path,
+      albums.imported_at,
       COUNT(tracks.id) AS track_count,
       COALESCE(SUM(tracks.duration), 0) AS total_duration
     FROM albums
@@ -450,9 +477,9 @@ export function getAlbumTracks(albumId: number) {
 
 // --- PLAYLIST FUNCTIONS ---
 
-export function createPlaylist(name: string, desc: string, coverImagePath: string | null) {
-  const stmt = db.prepare('INSERT INTO playlists (name, desc, cover_image_path) VALUES (?, ?, ?)')
-  const info = stmt.run(name, desc, coverImagePath)
+export function createPlaylist(name: string, desc: string, tag: string, coverImagePath: string | null) {
+  const stmt = db.prepare('INSERT INTO playlists (name, desc, tag, cover_image_path) VALUES (?, ?, ?, ?)')
+  const info = stmt.run(name, desc, tag || null, coverImagePath)
   return info.lastInsertRowid // Returns the new playlist's ID
 }
 
@@ -468,9 +495,9 @@ export function addTracksToPlaylist(playlistId: number, trackIds: number[]) {
   insertMany(playlistId, trackIds)
 }
 
-export function updatePlaylist(id: number, name: string, desc: string, coverImage: string | null) {
-  const stmt = db.prepare('UPDATE playlists SET name = ?, desc = ?, cover_image_path = ? WHERE id = ?')
-  stmt.run(name, desc, coverImage, id)
+export function updatePlaylist(id: number, name: string, desc: string, tag: string, coverImage: string | null) {
+  const stmt = db.prepare('UPDATE playlists SET name = ?, desc = ?, tag = ?, cover_image_path = ? WHERE id = ?')
+  stmt.run(name, desc, tag || null, coverImage, id)
   return true
 }
 

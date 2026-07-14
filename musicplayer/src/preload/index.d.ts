@@ -4,6 +4,7 @@ interface API {
   selectFolder: () => Promise<any[]>
   selectFiles: () => Promise<any[]>
   getLibrary: () => Promise<any[]>
+  incrementTrackListenCount: (trackId: number) => Promise<number | null>
   getAlbums: () => Promise<any[]>
   getAlbumTracks: (id: number) => Promise<any[]>
   getArtists: () => Promise<any[]>
@@ -13,12 +14,12 @@ interface API {
   onScanFolder: (callback: (event: any) => void) => void
   onCreatePlaylist: (callback: (event: any) => void) => void
   onImportFile: (callback: (event: any) => void) => void
-  createPlaylist: (name: string, desc: string, coverImagePath: string | null) => Promise<number>
+  createPlaylist: (name: string, desc: string, tag: string, coverImagePath: string | null) => Promise<number>
   getPlaylists: () => Promise<any[]>
   getPlaylistTracks: (id: number) => Promise<any[]>
   selectImage: () => Promise<string | null>
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) => Promise<boolean>
-  updatePlaylist: (id: number, name: string, desc: string, coverImage: string | null) => Promise<boolean>
+  updatePlaylist: (id: number, name: string, desc: string, tag: string, coverImage: string | null) => Promise<boolean>
   deletePlaylist: (id: number) => Promise<boolean>
   removeTrackFromPlaylist: (playlistId: number, trackId: number) => Promise<boolean>
   deleteTrack: (trackId: number) => Promise<boolean>

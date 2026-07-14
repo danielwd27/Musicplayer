@@ -13,12 +13,13 @@ interface SearchPopupProps {
   onPlaylistContextMenu: (e: React.MouseEvent, playlist: Playlist) => void
   onAlbumContextMenu: (e: React.MouseEvent, album: Album) => void
   onPlayTrack: (track: Track) => void
+  onSelectTrack: (track: Track) => void
   onPlayPlaylist: (playlist: Playlist) => void
   onClickPlaylist: ((playlist: Playlist) => void)
   onClickAlbum: (album: Album) => void
 }
 
-export default function SearchPopup({ isOpen, onClose, onTrackContextMenu, onPlaylistContextMenu, onAlbumContextMenu, onPlayTrack, onPlayPlaylist, onClickPlaylist, onClickAlbum, searchQuery, library, playlists, albums }: SearchPopupProps) {
+export default function SearchPopup({ isOpen, onClose, onTrackContextMenu, onPlaylistContextMenu, onAlbumContextMenu, onPlayTrack, onSelectTrack, onPlayPlaylist, onClickPlaylist, onClickAlbum, searchQuery, library, playlists, albums }: SearchPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const normalizedQuery = searchQuery.toLowerCase()
 
@@ -101,7 +102,7 @@ export default function SearchPopup({ isOpen, onClose, onTrackContextMenu, onPla
               </div>
               <div className="item-title">
                 <span>{album.title}</span>
-                <div className="player-info" style={{ fontSize: '12px', textAlign: 'left' }}>
+                <div className="text-soft" style={{ fontSize: '12px', textAlign: 'left' }}>
                   {album.album_artist || 'Unknown Artist'}
                   {album.track_count ? ` — ${album.track_count} ${album.track_count === 1 ? 'song' : 'songs'}` : ''}
                 </div>
@@ -122,6 +123,7 @@ export default function SearchPopup({ isOpen, onClose, onTrackContextMenu, onPla
               <div 
                 key={track.id} 
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track)}
+                onClick={() => onSelectTrack(track)}
                 onDoubleClick={() => {
                   onPlayTrack(track)
                   onClose()
@@ -136,7 +138,7 @@ export default function SearchPopup({ isOpen, onClose, onTrackContextMenu, onPla
                   <span>
                     {track.title || track.filename}
                   </span>
-                  <div className='player-info' style={{fontSize: '12px', textAlign: 'left'}}>
+                  <div className='text-soft' style={{fontSize: '12px', textAlign: 'left'}}>
                     {track?.artist ? track?.artist : 'Unknown Artist'}
                     {' — '}
                     {track?.album ? track.album : 'Unknown Album'}

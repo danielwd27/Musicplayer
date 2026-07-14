@@ -34,6 +34,7 @@ const api = {
     return ipcRenderer.on('toggle-mute', callback)
   },
   getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
+  incrementTrackListenCount: (trackId: number) => ipcRenderer.invoke('db:incrementTrackListenCount', trackId),
   getAlbums: () => ipcRenderer.invoke('db:getAlbums'),
   getAlbumTracks: (id: number) => ipcRenderer.invoke('db:getAlbumTracks', id),
   getArtists: () => ipcRenderer.invoke('db:getArtists'),
@@ -42,8 +43,8 @@ const api = {
   updateArtist: (id: number, name: string, description: string, imagePath: string | null) => ipcRenderer.invoke('db:updateArtist', id, name, description, imagePath),
   getPlaylists: () => ipcRenderer.invoke('db:getPlaylists'),
   getPlaylistTracks: (id: number) => ipcRenderer.invoke('db:getPlaylistTracks', id),
-  createPlaylist: (name: string, desc: string, coverImagePath: string | null) => ipcRenderer.invoke('db:createPlaylist', name, desc, coverImagePath),
-  updatePlaylist: (id: number, name: string, desc: string, coverImage: string | null) => ipcRenderer.invoke('db:updatePlaylist', id, name, desc, coverImage),
+  createPlaylist: (name: string, desc: string, tag: string, coverImagePath: string | null) => ipcRenderer.invoke('db:createPlaylist', name, desc, tag, coverImagePath),
+  updatePlaylist: (id: number, name: string, desc: string, tag: string, coverImage: string | null) => ipcRenderer.invoke('db:updatePlaylist', id, name, desc, tag, coverImage),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) => ipcRenderer.invoke('db:addTracksToPlaylist', playlistId, trackIds),
   deletePlaylist: (id: number) => ipcRenderer.invoke('db:deletePlaylist', id),

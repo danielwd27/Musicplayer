@@ -9,6 +9,7 @@ interface ArtistsViewProps {
   selectedArtistTracks?: Track[]
   currentTrack?: Track | null
   playTrack: (track: Track) => void
+  onSelectTrack: (track: Track) => void
   onPlayTrackWithQueue?: (track: Track, index: number) => void
   onOpenAlbum: (album: Album) => void
   onOpenTrackAlbum: (track: Track) => void
@@ -49,6 +50,7 @@ export default function ArtistsView({
   selectedArtistTracks = [],
   currentTrack,
   playTrack,
+  onSelectTrack,
   onPlayTrackWithQueue,
   onOpenAlbum,
   onOpenTrackAlbum,
@@ -153,6 +155,7 @@ export default function ArtistsView({
                 <div
                   key={`${track.id}-${index}`}
                   className={`track-item ${currentTrack?.id === track.id ? 'active' : ''}`}
+                  onClick={() => onSelectTrack(track)}
                   onDoubleClick={() => onPlayTrackWithQueue ? onPlayTrackWithQueue(track, index) : playTrack(track)}
                   onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}

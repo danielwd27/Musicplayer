@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 
 interface EditArtistModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSave: (name: string, description: string, imagePath: string | null) => void
-  initialName: string
-  initialDescription: string
-  initialImage: string | null
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (name: string, description: string, imagePath: string | null) => void;
+  initialName: string;
+  initialDescription: string;
+  initialImage: string | null;
 }
 
 export default function EditArtistModal({
@@ -15,60 +15,65 @@ export default function EditArtistModal({
   onSave,
   initialName,
   initialDescription,
-  initialImage
+  initialImage,
 }: EditArtistModalProps) {
-  const [name, setName] = useState(initialName)
-  const [description, setDescription] = useState(initialDescription)
-  const [imagePath, setImagePath] = useState<string | null>(initialImage)
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
+  const [imagePath, setImagePath] = useState<string | null>(initialImage);
 
   useEffect(() => {
     if (isOpen) {
-      setName(initialName)
-      setDescription(initialDescription)
-      setImagePath(initialImage)
+      setName(initialName);
+      setDescription(initialDescription);
+      setImagePath(initialImage);
     }
-  }, [isOpen, initialName, initialDescription, initialImage])
+  }, [isOpen, initialName, initialDescription, initialImage]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleSelectImage = async () => {
-    const path = await window.api.selectImage()
-    if (path) setImagePath(path)
-  }
+    const path = await window.api.selectImage();
+    if (path) setImagePath(path);
+  };
 
   const handleClearImage = () => {
-    setImagePath(null)
-  }
+    setImagePath(null);
+  };
 
   const handleSave = () => {
     if (name.trim()) {
-      onSave(name.trim(), description.trim(), imagePath)
+      onSave(name.trim(), description.trim(), imagePath);
     }
-  }
+  };
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 style={{ marginBottom: '8px' }}>Edit Artist</h2>
+        <h2 style={{ marginBottom: "8px" }}>Edit Artist</h2>
 
-        <div className="edit-modal-body">
+        <div className="modal-body">
+          <div style={{ textAlign: 'center'}}>
             <div
-              onClick={handleSelectImage}
-              className="card-image artist-image editable"
-              title="Select artist image"
-            >
-              {imagePath ? (
-                <img
-                  src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, '/'))}`}
-                  alt="Artist preview"
-                />
-              ) : (
-                <span>📷</span>
-              )}
-            </div>
-            {imagePath && (
-              <button className="btn-light" onClick={handleClearImage}>Remove Image</button>
+            onClick={handleSelectImage}
+            className="card-image artist-image editable"
+            title="Select artist image"
+          >
+            {imagePath ? (
+              <img
+                src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, "/"))}`}
+                alt="Artist preview"
+              />
+            ) : (
+              <span>📷</span>
             )}
+          </div>
+          {imagePath && (
+            <button className="btn-light" onClick={handleClearImage}>
+              Remove Image
+            </button>
+          )}
+        </div>
+          
 
           <div className="edit-artist-fields">
             <input
@@ -90,10 +95,14 @@ export default function EditArtistModal({
         </div>
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>Save</button>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" onClick={handleSave}>
+            Save
+          </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

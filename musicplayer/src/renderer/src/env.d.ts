@@ -19,6 +19,7 @@ export interface Track {
   track_num?: number;
   disc_num?: number;
   album_image_path?: string;
+  imported_at?: string;
 }
 
 export interface Playlist {
@@ -26,6 +27,7 @@ export interface Playlist {
   name: string;
   created_at: string;
   desc?: string;
+  tag?: string;
   cover_image_path?: string;
 }
 
@@ -37,6 +39,7 @@ export interface Album {
   year?: number;
   genre?: string;
   cover_image_path?: string;
+  imported_at?: string;
   track_count?: number;
   total_duration?: number;
 }
@@ -58,6 +61,7 @@ declare global {
       selectFolder: () => Promise<Track[]>;
       selectFiles: () => Promise<Track[]>;
       getLibrary: () => Promise<Track[]>;
+      incrementTrackListenCount: (trackId: number) => Promise<number | null>;
       getAlbums: () => Promise<Album[]>;
       getAlbumTracks: (id: number) => Promise<Track[]>;
       getArtists: () => Promise<Artist[]>;
@@ -73,10 +77,10 @@ declare global {
       onNextTrack: (callback: (event: any) => void) => void
       onPrevTrack: (callback: (event: any) => void) => void
       onToggleMute: (callback: (event: any) => void) => void
-      createPlaylist: (name: string, desc: string, coverImagePath: string | null) => id<number>;
+      createPlaylist: (name: string, desc: string, tag: string, coverImagePath: string | null) => id<number>;
       selectImage: () => Promise<string | null>;
       addTracksToPlaylist: (id: number, trackIds: number[]) => Promise<boolean>;
-      updatePlaylist: (id: number, name: string, desc: string, coverImagePath: string | null) => Promise<boolean>;
+      updatePlaylist: (id: number, name: string, desc: string, tag: string, coverImagePath: string | null) => Promise<boolean>;
       deletePlaylist: (id: number) => Promise<boolean>;
       removeTrackFromPlaylist: (id: number, trackId: number) => Promise<boolean>;
       deleteTrack: (trackId: number) => Promise<boolean>;

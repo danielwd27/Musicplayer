@@ -7,6 +7,7 @@ interface LibraryViewProps {
   tracks: Track[]
   currentTrack: Track | null
   playTrack: (track: Track) => void
+  onSelectTrack: (track: Track) => void
   onOpenTrackAlbum: (track: Track) => void
   onOpenTrackArtist: (track: Track) => void
   onTrackContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
@@ -14,7 +15,7 @@ interface LibraryViewProps {
   onImportFolder: () => Promise<number[]>
 }
 
-export default function LibraryView({ tracks, currentTrack, playTrack, onOpenTrackAlbum, onOpenTrackArtist, onTrackContextMenu, onImportFiles, onImportFolder }: LibraryViewProps) {
+export default function LibraryView({ tracks, currentTrack, playTrack, onSelectTrack, onOpenTrackAlbum, onOpenTrackArtist, onTrackContextMenu, onImportFiles, onImportFolder }: LibraryViewProps) {
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -80,6 +81,7 @@ export default function LibraryView({ tracks, currentTrack, playTrack, onOpenTra
               className={`track-item ${
                 currentTrack?.id === track.id ? 'active' : ''
               }`}
+              onClick={() => onSelectTrack(track)}
               onDoubleClick={() => playTrack(track)}
               onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, index)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}

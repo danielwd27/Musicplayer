@@ -1,92 +1,218 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, type KeyboardEvent } from "react";
 
 interface NewPlaylistModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onCreate: (name: string, desc: string, image: string | null) => void 
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (
+    name: string,
+    desc: string,
+    tag: string,
+    image: string | null,
+  ) => void;
+  availableTags?: string[];
 }
 
-export default function NewPlaylistModal({ isOpen, onClose, onCreate }: NewPlaylistModalProps) {
-  const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
-  const [imagePath, setImagePath] = useState<string | null>(null)
+export default function NewPlaylistModal({
+  isOpen,
+  onClose,
+  onCreate,
+  availableTags = [],
+}: NewPlaylistModalProps) {
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const [imagePath, setImagePath] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setName('')
-      setDesc('')
-      setImagePath(null)
+      setName("");
+      setDesc("");
+      setTagInput("");
+      setTags([]);
+      setIsTagDropdownOpen(false);
+      setImagePath(null);
     }
-  }, [isOpen])
+  }, [isOpen]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleSelectImage = async () => {
-    const path = await window.api.selectImage()
-    if (path) setImagePath(path)
-  }
+    const path = await window.api.selectImage();
+    if (path) setImagePath(path);
+  };
 
   const handleCreate = () => {
     if (name.trim()) {
-      onCreate(name.trim(), desc.trim(), imagePath)
+      onCreate(name.trim(), desc.trim(), tags.join(", "), imagePath);
     }
-  }
+  };
+
+  const addTag = (tag: string) => {
+    const cleanTag = tag.trim();
+    if (
+      !cleanTag ||
+      tags.some(
+        (existingTag) => existingTag.toLowerCase() === cleanTag.toLowerCase(),
+      )
+    )
+      return;
+
+    setTags((prev) => [...prev, cleanTag]);
+    setTagInput("");
+    setIsTagDropdownOpen(false);
+  };
+
+  const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(tagInput);
+    }
+  };
+
+  const tagSuggestions = availableTags.filter(
+    (tag) =>
+      tag.toLowerCase().includes(tagInput.trim().toLowerCase()) &&
+      !tags.some(
+        (selectedTag) => selectedTag.toLowerCase() === tag.toLowerCase(),
+      ),
+  );
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 style={{ marginBottom: '8px' }}>Create New Playlist</h2>
-        
-        <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-          <div 
+        <h2 style={{ marginBottom: "8px" }}>Create New Playlist</h2>
+
+        <div className="modal-body">
+          <div style={{ textAlign: 'center'}}>
+            <div
             onClick={handleSelectImage}
-            className='playlist-image'
-            style={{
-              width: '120px', height: '120px', 
-              borderRadius: '8px', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0
-            }}
-          >
+            className="card-image editable"
+            >
             {imagePath ? (
-              <img 
-                src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, '/'))}`} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                alt="Preview" 
+              <img
+                src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, "/"))}`}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                alt="Preview"
               />
             ) : (
-              <span className='text-soft' style={{ fontSize: '14px', textAlign:'center' }}>
-                <div style={{fontSize:'28px'}}>
-                <svg viewBox="0 0 24 24" style={{stroke: 'var(--white)'}}><g fill="none" fill-rule="evenodd"><path d="M0 0h24v24H0z"/><rect stroke-width="1.5" stroke-linecap="round" x="4" y="4" width="16" height="16" rx="2"/><circle stroke-width="2" stroke-linecap="round" cx="8.5" cy="8.5" r="1"/><path d="m5 19 5.249-6.123a1 1 0 0 1 1.511-.008L18 20m-4.5-5.5 2.297-2.68a1 1 0 0 1 1.467-.056L20 14.5" stroke-width="1.5" stroke-linecap="round"/></g></svg>
-                </div> Upload Image
+              <span
+                className="text-soft"
+                style={{ fontSize: "14px", textAlign: "center" }}
+              >
+                <div style={{ fontSize: "28px" }}>
+                  <svg viewBox="0 0 24 24">
+                    <g fill="none" fill-rule="evenodd">
+                      <path d="M0 0h24v24H0z" />
+                      <rect
+                        stroke= "var(--white)"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        x="4"
+                        y="4"
+                        width="16"
+                        height="16"
+                        rx="2"
+                      />
+                      <circle
+                        stroke= "var(--white)"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        cx="8.5"
+                        cy="8.5"
+                        r="1"
+                      />
+                      <path
+                        stroke= "var(--white)"
+                        d="m5 19 5.249-6.123a1 1 0 0 1 1.511-.008L18 20m-4.5-5.5 2.297-2.68a1 1 0 0 1 1.467-.056L20 14.5"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </g>
+                  </svg>
+                </div>{" "}
+                Upload Image
               </span>
             )}
+            </div>
+            {imagePath && (
+                <button className="btn-light" onClick={() => setImagePath(null)}>
+                  Remove Image
+                </button>
+              )}
           </div>
 
-          <div style={{ flexGrow: 1 }}>
-            <input 
-              autoFocus 
+          <div className="edit-artist-fields">
+            <input
+              autoFocus
               className="title-input"
-              type="text" 
+              type="text"
               placeholder="Playlist Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-            <input 
-              className="search-input"
-              type="text" 
+            <textarea
+              className="search-input edit-artist-description"
               placeholder="Description (Optional)"
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              style={{ marginBottom: 0 }}
             />
+            <div className="tag-picker">
+              <div className="tag-list">
+                {tags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="tag-chip editable"
+                    onClick={() =>
+                      setTags((prev) => prev.filter((item) => item !== tag))
+                    }
+                  >
+                    {tag} ×
+                  </button>
+                ))}
+              </div>
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Add tag"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onFocus={() => setIsTagDropdownOpen(true)}
+                style={{ marginBottom: 0, width: "100%" }}
+              />
+              {isTagDropdownOpen && tagSuggestions.length > 0 && (
+                <div className="tag-suggestions">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className="context-menu-item"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        addTag(tag);
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleCreate}>Create</button>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" onClick={handleCreate}>
+            Create
+          </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -8,12 +8,13 @@ interface QueueSidebarProps {
   historyQueue: Track[]
   currentTrack: Track | null
   onReorderQueue: (fromIndex: number, toIndex: number) => void
+  onSelectTrack: (track: Track) => void
   onPlayTrack: (index: number) => void
   onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void
   onClear: (target: 'queue' | 'history') => void
 }
 
-export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack, onReorderQueue, onPlayTrack, onContextMenu: onTrackContextMenu, onClear }: QueueSidebarProps) {
+export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack, onReorderQueue, onSelectTrack, onPlayTrack, onContextMenu: onTrackContextMenu, onClear }: QueueSidebarProps) {
 
   const[activeTab, setActiveTab] = useState<'queue' | 'history'>('queue')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -93,6 +94,7 @@ export default function QueueSidebar({ isOpen, queue, historyQueue, currentTrack
                   setDraggedIndex(null)
                   setDropIndex(null)
                 }}
+                onClick={() => onSelectTrack(track)}
                 onDoubleClick={() => {
                   if (activeTab === 'queue') {
                     onPlayTrack(i)
