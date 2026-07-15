@@ -356,6 +356,13 @@ app.whenReady().then(() => {
   })
 
   // --- MENU SETUP ---
+  const themeMenuItems: MenuItemConstructorOptions[] = [
+    { label: 'Default', type: 'radio', checked: true, click: () => BrowserWindow.getFocusedWindow()?.webContents.send('set-theme', 'default') },
+    { label: 'Midnight', type: 'radio', click: () => BrowserWindow.getFocusedWindow()?.webContents.send('set-theme', 'midnight') },
+    { label: 'Rose', type: 'radio', click: () => BrowserWindow.getFocusedWindow()?.webContents.send('set-theme', 'rose') },
+    { label: 'Sand', type: 'radio', click: () => BrowserWindow.getFocusedWindow()?.webContents.send('set-theme', 'sand') }
+  ]
+
   const menuTemplate: MenuItemConstructorOptions[] = [
     {
       label: 'File',
@@ -431,7 +438,13 @@ app.whenReady().then(() => {
       ]
     },
     {
-      label: 'Appearance'
+      label: 'Appearance',
+      submenu: [
+        {
+          label: 'Themes',
+          submenu: themeMenuItems
+        }
+      ]
     }
   ]
   

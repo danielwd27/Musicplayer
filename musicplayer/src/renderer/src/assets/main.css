@@ -1,4 +1,5 @@
 @import './base.css';
+@import './themes.css';
 
 html,
 body,
@@ -40,7 +41,7 @@ code {
   grid-template-columns: 220px 1fr; 
   grid-template-rows: 70px 1fr; 
   color: var(--white);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--app-font);
   overflow: hidden;
 }
 

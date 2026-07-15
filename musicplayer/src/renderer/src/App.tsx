@@ -29,6 +29,14 @@ type ViewState =
   | { type: 'playlist', playlist: Playlist}
 
 type RepeatMode = 'off' | 'all' | 'one'
+type ThemeId = 'default' | 'midnight' | 'rose' | 'sand'
+
+const themes: Array<{ id: ThemeId; label: string }> = [
+  { id: 'default', label: 'Default' },
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'rose', label: 'Rose' },
+  { id: 'sand', label: 'Sand' }
+]
 
 function App() {
   const [tracks, setTracks] = useState<Track[]>([]) // tracks currently in view
@@ -60,6 +68,10 @@ function App() {
   const [isShuffled, setIsShuffled] = useState(false)
   const [unshuffledQueue, setUnshuffledQueue] = useState<Track[] | null>(null)
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
+  const [theme, setTheme] = useState<ThemeId>(() => {
+    const savedTheme = localStorage.getItem('theme')
+    return themes.some((themeOption) => themeOption.id === savedTheme) ? savedTheme as ThemeId : 'default'
+  })
 
   // Audioplayer states
   const [isPlaying, setIsPlaying] = useState(false)
@@ -72,6 +84,19 @@ function App() {
   
   const audioRef = useRef<HTMLAudioElement>(null)
   const prevVolumeRef = useRef<number>(1)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    window.api.onSetTheme((themeId) => {
+      if (themes.some((themeOption) => themeOption.id === themeId)) {
+        setTheme(themeId as ThemeId)
+      }
+    })
+  }, [])
 
   // Helper functions to manage context menus (only one open at a time)
   const openTrackContextMenu = (data: TrackContextMenuData) => {

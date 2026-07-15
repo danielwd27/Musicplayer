@@ -33,6 +33,10 @@ const api = {
     ipcRenderer.removeAllListeners('toggle-mute')
     return ipcRenderer.on('toggle-mute', callback)
   },
+  onSetTheme: (callback: (themeId: string) => void) => {
+    ipcRenderer.removeAllListeners('set-theme')
+    return ipcRenderer.on('set-theme', (_event, themeId: string) => callback(themeId))
+  },
   getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
   incrementTrackListenCount: (trackId: number) => ipcRenderer.invoke('db:incrementTrackListenCount', trackId),
   getAlbums: () => ipcRenderer.invoke('db:getAlbums'),

@@ -77,6 +77,7 @@ declare global {
       onNextTrack: (callback: (event: any) => void) => void
       onPrevTrack: (callback: (event: any) => void) => void
       onToggleMute: (callback: (event: any) => void) => void
+      onSetTheme: (callback: (themeId: string) => void) => void
       createPlaylist: (name: string, desc: string, tag: string, coverImagePath: string | null) => id<number>;
       selectImage: () => Promise<string | null>;
       addTracksToPlaylist: (id: number, trackIds: number[]) => Promise<boolean>;

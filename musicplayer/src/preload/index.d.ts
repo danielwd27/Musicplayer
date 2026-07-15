@@ -14,6 +14,11 @@ interface API {
   onScanFolder: (callback: (event: any) => void) => void
   onCreatePlaylist: (callback: (event: any) => void) => void
   onImportFile: (callback: (event: any) => void) => void
+  onPlayPause: (callback: (event: any) => void) => void
+  onNextTrack: (callback: (event: any) => void) => void
+  onPrevTrack: (callback: (event: any) => void) => void
+  onToggleMute: (callback: (event: any) => void) => void
+  onSetTheme: (callback: (themeId: string) => void) => void
   createPlaylist: (name: string, desc: string, tag: string, coverImagePath: string | null) => Promise<number>
   getPlaylists: () => Promise<any[]>
   getPlaylistTracks: (id: number) => Promise<any[]>
