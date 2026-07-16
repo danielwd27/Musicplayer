@@ -1,91 +1,99 @@
-import { useEffect, useState } from 'react'
-import { Track, Playlist } from '../env'
+import { useEffect, useState } from "react";
+import { Track, Playlist } from "../env";
 
 export interface TrackContextMenuData {
-  x: number
-  y: number
-  track: Track
-  queueIndex?: number
-  source: 'library' | 'playlist' | 'queue'
+  x: number;
+  y: number;
+  track: Track;
+  queueIndex?: number;
+  source: "library" | "playlist" | "queue";
 }
 
 interface TrackContextMenuProps {
-  menuData: TrackContextMenuData | null
-  onClose: () => void
-  onPlayNext: (track: Track) => void
-  onAddToQueue: (track: Track) => void
-  playlists?: Playlist[]
-  onAddToPlaylist?: (playlist: Playlist, trackId: number) => void
-  onRemoveFromQueue?: (index: number) => void
-  onRemoveFromPlaylist?: (trackId: number) => void
-  onDeleteFromLibrary?: (trackId: number) => void
-  onOpenArtist?: (track: Track) => void
-  onOpenAlbum?: (track: Track) => void
+  menuData: TrackContextMenuData | null;
+  onClose: () => void;
+  onPlayNext: (track: Track) => void;
+  onAddToQueue: (track: Track) => void;
+  playlists?: Playlist[];
+  onAddToPlaylist?: (playlist: Playlist, trackId: number) => void;
+  onRemoveFromQueue?: (index: number) => void;
+  onRemoveFromPlaylist?: (trackId: number) => void;
+  onDeleteFromLibrary?: (trackId: number) => void;
+  onOpenArtist?: (track: Track) => void;
+  onOpenAlbum?: (track: Track) => void;
 }
 
-export default function TrackContextMenu({ 
-  menuData, 
-  onClose, 
-  onPlayNext, 
-  onAddToQueue, 
+export default function TrackContextMenu({
+  menuData,
+  onClose,
+  onPlayNext,
+  onAddToQueue,
   playlists = [],
   onAddToPlaylist,
   onRemoveFromQueue,
   onRemoveFromPlaylist,
   onDeleteFromLibrary,
   onOpenArtist,
-  onOpenAlbum
+  onOpenAlbum,
 }: TrackContextMenuProps) {
-  const [showPlaylistSubmenu, setShowPlaylistSubmenu] = useState(false)
-  
+  const [showPlaylistSubmenu, setShowPlaylistSubmenu] = useState(false);
+
   // Automatically close the menu if the user clicks ANYWHERE else on the screen
   useEffect(() => {
-    const handleClickOutside = () => onClose()
+    const handleClickOutside = () => onClose();
     if (menuData) {
-      document.addEventListener('click', handleClickOutside)
+      document.addEventListener("click", handleClickOutside);
     }
     return () => {
-      document.removeEventListener('click', handleClickOutside)
-    }
-  }, [menuData, onClose])
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [menuData, onClose]);
 
-  if (!menuData) return null
+  if (!menuData) return null;
 
-  const safeX = Math.min(menuData.x, window.innerWidth - 200) 
-  const safeY = Math.min(menuData.y, window.innerHeight - 200)
+  const safeX = Math.min(menuData.x, window.innerWidth - 200);
+  const safeY = Math.min(menuData.y, window.innerHeight - 200);
 
   return (
-    <div 
-      className="context-menu" 
-      style={{ top: safeY, left: safeX, overflow: 'visible' }}
-      onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => e.preventDefault()}
+    <div
+      className="context-menu"
+      style={{ top: safeY, left: safeX, overflow: "visible" }}
+      onContextMenu={(e: React.MouseEvent<HTMLDivElement>) =>
+        e.preventDefault()
+      }
     >
-      <div className="context-menu-item" onClick={() => onPlayNext(menuData.track)}>
+      <div
+        className="context-menu-item"
+        onClick={() => onPlayNext(menuData.track)}
+      >
         Play Next
       </div>
-      <div className="context-menu-item" onClick={() => onAddToQueue(menuData.track)}>
+      <div
+        className="context-menu-item"
+        onClick={() => onAddToQueue(menuData.track)}
+      >
         Add to Queue
       </div>
       {(onOpenArtist || onOpenAlbum) && (
         <>
           <div className="context-menu-divider"></div>
           {onOpenArtist && (
-            <div 
-              className="context-menu-item" 
+            <div
+              className="context-menu-item"
               onClick={() => {
-                onOpenArtist(menuData.track)
-                onClose()
+                onOpenArtist(menuData.track);
+                onClose();
               }}
             >
               Go to Artist
             </div>
           )}
           {onOpenAlbum && (
-            <div 
-              className="context-menu-item" 
+            <div
+              className="context-menu-item"
               onClick={() => {
-                onOpenAlbum(menuData.track)
-                onClose()
+                onOpenAlbum(menuData.track);
+                onClose();
               }}
             >
               Go to Album
@@ -93,27 +101,27 @@ export default function TrackContextMenu({
           )}
         </>
       )}
-      
+
       <div className="context-menu-divider"></div>
-      
-      <div 
-        className="context-menu-item" 
+
+      <div
+        className="context-menu-item"
         onMouseEnter={() => setShowPlaylistSubmenu(true)}
         onMouseLeave={() => setShowPlaylistSubmenu(false)}
-        style={{ position: 'relative' }}
+        style={{ position: "relative" }}
       >
         Add to Playlist
         {showPlaylistSubmenu && playlists.length > 0 && (
-          <div 
+          <div
             className="context-menu"
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 0,
-              left: '100%',
-              minWidth: '180px',
+              left: "100%",
+              minWidth: "180px",
               zIndex: 1000,
-              marginLeft: '2px',
-              overflow: 'hidden'
+              marginLeft: "2px",
+              overflow: "hidden",
             }}
             onMouseEnter={() => setShowPlaylistSubmenu(true)}
             onMouseLeave={() => setShowPlaylistSubmenu(false)}
@@ -124,23 +132,26 @@ export default function TrackContextMenu({
                 className="context-menu-item"
                 onClick={() => {
                   if (onAddToPlaylist) {
-                    onAddToPlaylist(playlist, menuData.track.id)
+                    onAddToPlaylist(playlist, menuData.track.id);
                   }
-                  onClose()
-                  setShowPlaylistSubmenu(false)
+                  onClose();
+                  setShowPlaylistSubmenu(false);
                 }}
               >
-                <div className="sidebar-thumb" style = {{backgroundColor:'var(--neutral-background-dark'}}>
-                      {playlist.cover_image_path ? (
-                        <img 
-                          src={`local://stream?path=${encodeURIComponent(playlist.cover_image_path.replace(/\\/g, '/'))}`} 
-                          alt="cover" 
-                        />
-                      ) : (
-                        <span style={{ fontSize: '10px' }}>🎵</span>
-                      )}
-                    </div>
-                <div className='item-title'>{playlist.name}</div>
+                <div
+                  className="sidebar-thumb"
+                  style={{ backgroundColor: "var(--neutral-background-dark" }}
+                >
+                  {playlist.cover_image_path ? (
+                    <img
+                      src={`local://stream?path=${encodeURIComponent(playlist.cover_image_path.replace(/\\/g, "/"))}`}
+                      alt="cover"
+                    />
+                  ) : (
+                    <span style={{ fontSize: "10px" }}>🎵</span>
+                  )}
+                </div>
+                <div className="item-title">{playlist.name}</div>
               </div>
             ))}
           </div>
@@ -148,14 +159,14 @@ export default function TrackContextMenu({
       </div>
 
       {/* Only show "Remove" if we right-clicked inside the queue! */}
-      {menuData.source === 'queue' && onRemoveFromQueue && (
+      {menuData.source === "queue" && onRemoveFromQueue && (
         <>
           <div className="context-menu-divider"></div>
-          <div 
-            className="context-menu-item danger" 
+          <div
+            className="context-menu-item danger"
             onClick={() => {
               if (menuData.queueIndex !== undefined) {
-                onRemoveFromQueue(menuData.queueIndex)
+                onRemoveFromQueue(menuData.queueIndex);
               }
             }}
           >
@@ -165,11 +176,11 @@ export default function TrackContextMenu({
       )}
 
       {/* Only show "Remove from Playlist" if we right-clicked inside a playlist */}
-      {menuData.source === 'playlist' && onRemoveFromPlaylist && (
+      {menuData.source === "playlist" && onRemoveFromPlaylist && (
         <>
           {/* <div className="context-menu-divider"></div> */}
-          <div 
-            className="context-menu-item danger" 
+          <div
+            className="context-menu-item danger"
             onClick={() => onRemoveFromPlaylist(menuData.track.id)}
           >
             Remove from Playlist
@@ -181,8 +192,8 @@ export default function TrackContextMenu({
       {onDeleteFromLibrary && (
         <>
           <div className="context-menu-divider"></div>
-          <div 
-            className="context-menu-item danger" 
+          <div
+            className="context-menu-item danger"
             onClick={() => onDeleteFromLibrary(menuData.track.id)}
           >
             Remove from Library
@@ -190,5 +201,5 @@ export default function TrackContextMenu({
         </>
       )}
     </div>
-  )
+  );
 }

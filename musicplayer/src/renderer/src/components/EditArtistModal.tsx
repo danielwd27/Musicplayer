@@ -52,28 +52,27 @@ export default function EditArtistModal({
         <h2 style={{ marginBottom: "8px" }}>Edit Artist</h2>
 
         <div className="modal-body">
-          <div style={{ textAlign: 'center'}}>
+          <div style={{ textAlign: "center" }}>
             <div
-            onClick={handleSelectImage}
-            className="card-image artist-image editable"
-            title="Select artist image"
-          >
-            {imagePath ? (
-              <img
-                src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, "/"))}`}
-                alt="Artist preview"
-              />
-            ) : (
-              <span>📷</span>
+              onClick={handleSelectImage}
+              className="card-image artist-image editable"
+              title="Select artist image"
+            >
+              {imagePath ? (
+                <img
+                  src={`local://stream?path=${encodeURIComponent(imagePath.replace(/\\/g, "/"))}`}
+                  alt="Artist preview"
+                />
+              ) : (
+                <span>📷</span>
+              )}
+            </div>
+            {imagePath && (
+              <button className="btn-light" onClick={handleClearImage}>
+                Remove Image
+              </button>
             )}
           </div>
-          {imagePath && (
-            <button className="btn-light" onClick={handleClearImage}>
-              Remove Image
-            </button>
-          )}
-        </div>
-          
 
           <div className="edit-artist-fields">
             <input
