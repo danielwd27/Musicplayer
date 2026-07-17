@@ -1,4 +1,4 @@
-import { useState, useEffect, type KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 
 interface EditPlaylistModalProps {
   isOpen: boolean
@@ -21,6 +21,7 @@ export default function EditPlaylistModal({
   const [tags, setTags] = useState<string[]>([])
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false)
   const [imagePath, setImagePath] = useState<string | null>(initialImage)
+  const tagPickerRef = useRef<HTMLDivElement>(null)
 
   // Pre-fill the data whenever the modal opens!
   useEffect(() => {
@@ -33,6 +34,19 @@ export default function EditPlaylistModal({
       setImagePath(initialImage)
     }
   }, [isOpen, initialName, initialDesc, initialTag, initialImage])
+
+  useEffect(() => {
+    if (!isOpen || !isTagDropdownOpen) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!tagPickerRef.current?.contains(event.target as Node)) {
+        setIsTagDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [isOpen, isTagDropdownOpen])
 
   if (!isOpen) return null
 
@@ -147,7 +161,7 @@ export default function EditPlaylistModal({
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
             />
-            <div className="tag-picker">
+            <div className="tag-picker" ref={tagPickerRef}>
               <div className="tag-list">
                 {tags.map((tag) => (
                   <button key={tag} type="button" className="tag-chip editable" onClick={() => setTags((prev) => prev.filter((item) => item !== tag))}>

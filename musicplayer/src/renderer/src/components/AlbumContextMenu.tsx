@@ -35,7 +35,6 @@ export default function AlbumContextMenu({
     <div 
       className="context-menu" 
       style={{ top: safeY, left: safeX }}
-      // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
       onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => e.preventDefault()}
     >
       <div className="context-menu-item" onClick={() => { onPlay(menuData.album); onClose(); }}>

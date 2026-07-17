@@ -60,7 +60,7 @@ export default function QueueSidebar({
         <div className="tab-select">
           <label>
             {" "}
-            Queue
+            Up Next
             <input
               type="radio"
               name="Queue"
