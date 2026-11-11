@@ -3,6 +3,7 @@ import { Track } from "../env";
 import {
   formatDuration,
   formatPlaylistDuration,
+  formatTrackArtist,
 } from "@renderer/utilities/formatting";
 import { Playlist } from "../env";
 
@@ -223,7 +224,7 @@ export default function PlaylistView({
                   disabled={!track.artist}
                   title="Open artist page"
                 >
-                  {track.artist || "Unknown Artist"}
+                  {formatTrackArtist(track)}
                 </button>
                 <button
                   type="button"

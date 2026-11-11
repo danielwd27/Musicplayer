@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Track } from "../env";
-import { formatDuration } from "@renderer/utilities/formatting";
+import {
+  formatDuration,
+  formatTrackArtist,
+} from "@renderer/utilities/formatting";
 
 // Define the data this page needs to do its job
 interface LibraryViewProps {
@@ -140,7 +143,7 @@ export default function LibraryView({
                   disabled={!track.artist}
                   title="Open artist page"
                 >
-                  {track.artist || "Unknown Artist"}
+                  {formatTrackArtist(track)}
                 </button>
                 <button
                   type="button"

@@ -6,6 +6,8 @@ export interface Track {
   filename: string;
   title?: string;
   artist?: string;
+  additional_artists?: string;
+  featured_artists?: string;
   album_artist?: string;
   album?: string;
   artist_id?: number;
@@ -13,6 +15,7 @@ export interface Track {
   duration: number;
   year?: number;
   genre?: string;
+  is_favorite?: boolean;
   bit_rate?: string;
   num_listens: number;
   is_favorite: boolean;
@@ -42,6 +45,7 @@ export interface Album {
   imported_at?: string;
   track_count?: number;
   total_duration?: number;
+  is_favorite?: boolean;
 }
 
 export interface Artist {
@@ -63,6 +67,7 @@ declare global {
       getLibrary: () => Promise<Track[]>;
       incrementTrackListenCount: (trackId: number) => Promise<number | null>;
       getAlbums: () => Promise<Album[]>;
+      setAlbumFavorite: (albumId: number, isFavorite: boolean) => Promise<boolean>;
       getAlbumTracks: (id: number) => Promise<Track[]>;
       getArtists: () => Promise<Artist[]>;
       getArtistTracks: (id: number) => Promise<Track[]>;
@@ -85,6 +90,7 @@ declare global {
       deletePlaylist: (id: number) => Promise<boolean>;
       removeTrackFromPlaylist: (id: number, trackId: number) => Promise<boolean>;
       deleteTrack: (trackId: number) => Promise<boolean>;
+      deleteAlbums: (albumIds: number[]) => Promise<number>;
     }
   }
 }

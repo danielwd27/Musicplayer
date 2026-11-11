@@ -6,6 +6,7 @@ interface API {
   getLibrary: () => Promise<any[]>
   incrementTrackListenCount: (trackId: number) => Promise<number | null>
   getAlbums: () => Promise<any[]>
+  setAlbumFavorite: (albumId: number, isFavorite: boolean) => Promise<boolean>
   getAlbumTracks: (id: number) => Promise<any[]>
   getArtists: () => Promise<any[]>
   getArtistTracks: (id: number) => Promise<any[]>
@@ -28,6 +29,7 @@ interface API {
   deletePlaylist: (id: number) => Promise<boolean>
   removeTrackFromPlaylist: (playlistId: number, trackId: number) => Promise<boolean>
   deleteTrack: (trackId: number) => Promise<boolean>
+  deleteAlbums: (albumIds: number[]) => Promise<number>
 }
 
 declare global {

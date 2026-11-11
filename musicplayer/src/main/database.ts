@@ -40,6 +40,7 @@ export function initializeDatabase() {
       album_artist_id INTEGER,
       year INTEGER,
       genre TEXT,
+      is_favorite INTEGER DEFAULT 0,
       cover_image_path TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -56,6 +57,8 @@ export function initializeDatabase() {
       filename TEXT NOT NULL,
       title TEXT,
       artist TEXT,
+      additional_artists TEXT,
+      featured_artists TEXT,
       album_artist TEXT,
       album TEXT,
       artist_id INTEGER,
@@ -104,6 +107,9 @@ export function initializeDatabase() {
   ensureColumnExists('playlists', 'tag', 'tag TEXT')
   ensureColumnExists('playlist_tracks', 'track_order', 'track_order INTEGER DEFAULT 0')
   ensureColumnExists('tracks', 'year', 'year INTEGER')
+  ensureColumnExists('albums', 'is_favorite', 'is_favorite INTEGER DEFAULT 0')
+  ensureColumnExists('tracks', 'additional_artists', 'additional_artists TEXT')
+  ensureColumnExists('tracks', 'featured_artists', 'featured_artists TEXT')
   ensureColumnExists('tracks', 'album_artist', 'album_artist TEXT')
   ensureColumnExists('tracks', 'artist_id', 'artist_id INTEGER REFERENCES artists(id) ON DELETE SET NULL')
   ensureColumnExists('tracks', 'album_id', 'album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL')
@@ -131,6 +137,8 @@ export function initializeDatabase() {
   `)
 
   backfillTrackAlbumRelations()
+  migrateFeaturedArtistCredits()
+  mergeAlbumsByTitle()
   
   console.log("Database initialized at:", dbPath)
 }
@@ -142,6 +150,32 @@ export default db
 const normalizeMusicName = (value: string | undefined | null, fallback: string): string => {
   const normalized = value?.trim()
   return normalized || fallback
+}
+
+function splitArtistCredit(value: string | undefined | null): {
+  primaryArtist: string
+  additionalArtists: string | null
+  featuredArtists: string | null
+} {
+  const artistCredit = normalizeMusicName(value, 'Unknown Artist')
+  const match = artistCredit.match(/^(.*?)\s+(?:ft\.?|feat\.?|featuring)\s+(.+)$/i)
+
+  if (!match) {
+    return {
+      primaryArtist: artistCredit,
+      additionalArtists: null,
+      featuredArtists: null
+    }
+  }
+
+  const primaryCredits = match[1]
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  const primaryArtist = normalizeMusicName(primaryCredits[0], 'Unknown Artist')
+  const additionalArtists = primaryCredits.slice(1).join(', ') || null
+  const featuredArtists = match[2]?.trim() || null
+  return { primaryArtist, additionalArtists, featuredArtists }
 }
 
 export function findOrCreateArtist(name: string | undefined | null): number {
@@ -171,6 +205,25 @@ export function findOrCreateAlbum(
   coverImagePath?: string | null
 ): number {
   const albumTitle = normalizeMusicName(title, 'Unknown Album')
+  const existingAlbum = db.prepare(`
+    SELECT id
+    FROM albums
+    WHERE title = ? COLLATE NOCASE
+    ORDER BY id ASC
+    LIMIT 1
+  `).get(albumTitle) as { id: number } | undefined
+
+  if (existingAlbum) {
+    db.prepare(`
+      UPDATE albums
+      SET
+        year = COALESCE(?, year),
+        genre = COALESCE(?, genre),
+        cover_image_path = COALESCE(?, cover_image_path)
+      WHERE id = ?
+    `).run(year ?? null, genre || null, coverImagePath || null, existingAlbum.id)
+    return existingAlbum.id
+  }
 
   const insertStmt = db.prepare(`
     INSERT OR IGNORE INTO albums (title, album_artist_id, year, genre, cover_image_path, imported_at)
@@ -213,8 +266,15 @@ export function insertTrack(
   trackNum?: number,
   discNum?: number
 ) {
-  const artistName = normalizeMusicName(artist, 'Unknown Artist')
-  const albumArtistName = normalizeMusicName(albumArtist || artistName, 'Unknown Artist')
+  const {
+    primaryArtist: artistName,
+    additionalArtists,
+    featuredArtists
+  } = splitArtistCredit(artist)
+  const albumArtistName = normalizeMusicName(
+    featuredArtists ? artistName : albumArtist || artistName,
+    'Unknown Artist'
+  )
   const albumTitle = normalizeMusicName(album, 'Unknown Album')
   const artistId = findOrCreateArtist(artistName)
   const albumArtistId = findOrCreateArtist(albumArtistName)
@@ -227,6 +287,8 @@ export function insertTrack(
       duration,
       title,
       artist,
+      additional_artists,
+      featured_artists,
       album_artist,
       album,
       artist_id,
@@ -239,12 +301,14 @@ export function insertTrack(
       album_image_path,
       imported_at
     ) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(file_path) DO UPDATE SET
       filename = excluded.filename,
       duration = excluded.duration,
       title = excluded.title,
       artist = excluded.artist,
+      additional_artists = excluded.additional_artists,
+      featured_artists = excluded.featured_artists,
       album_artist = excluded.album_artist,
       album = excluded.album,
       artist_id = excluded.artist_id,
@@ -262,6 +326,8 @@ export function insertTrack(
     duration ?? null,
     title || null,
     artistName,
+    additionalArtists,
+    featuredArtists,
     albumArtistName,
     albumTitle,
     artistId,
@@ -273,6 +339,115 @@ export function insertTrack(
     discNum ?? null,
     albumImagePath || null
   )
+}
+
+function migrateFeaturedArtistCredits() {
+  const tracks = db.prepare(`
+    SELECT id, artist, additional_artists, featured_artists, album, year, genre, album_image_path
+    FROM tracks
+    WHERE artist IS NOT NULL
+  `).all() as Array<{
+    id: number
+    artist: string
+    additional_artists?: string | null
+    featured_artists?: string | null
+    album?: string | null
+    year?: number | null
+    genre?: string | null
+    album_image_path?: string | null
+  }>
+
+  const updateTrack = db.prepare(`
+    UPDATE tracks
+    SET artist = ?, additional_artists = ?, featured_artists = ?, album_artist = ?, artist_id = ?, album_id = ?
+    WHERE id = ?
+  `)
+
+  const migrateMany = db.transaction(() => {
+    for (const track of tracks) {
+      const existingCredit = track.featured_artists
+        ? `${track.artist} ft. ${track.featured_artists}`
+        : track.artist
+      const { primaryArtist, additionalArtists, featuredArtists } =
+        splitArtistCredit(existingCredit)
+      if (!featuredArtists) continue
+
+      const artistId = findOrCreateArtist(primaryArtist)
+      const albumId = findOrCreateAlbum(
+        normalizeMusicName(track.album, 'Unknown Album'),
+        artistId,
+        track.year ?? undefined,
+        track.genre ?? undefined,
+        track.album_image_path
+      )
+
+      updateTrack.run(
+        primaryArtist,
+        additionalArtists,
+        featuredArtists,
+        primaryArtist,
+        artistId,
+        albumId,
+        track.id
+      )
+    }
+
+    db.prepare(`
+      DELETE FROM albums
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tracks WHERE tracks.album_id = albums.id
+      )
+    `).run()
+
+    db.prepare(`
+      DELETE FROM artists
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tracks WHERE tracks.artist_id = artists.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM albums WHERE albums.album_artist_id = artists.id
+      )
+    `).run()
+  })
+
+  migrateMany()
+}
+
+function mergeAlbumsByTitle() {
+  const albums = db.prepare(`
+    SELECT id, title
+    FROM albums
+    ORDER BY id ASC
+  `).all() as Array<{ id: number; title: string }>
+
+  const canonicalAlbumIds = new Map<string, number>()
+  const moveTracks = db.prepare('UPDATE tracks SET album_id = ? WHERE album_id = ?')
+  const deleteAlbum = db.prepare('DELETE FROM albums WHERE id = ?')
+
+  db.transaction(() => {
+    for (const album of albums) {
+      const titleKey = normalizeMusicName(album.title, 'Unknown Album').toLocaleLowerCase()
+      const canonicalId = canonicalAlbumIds.get(titleKey)
+
+      if (canonicalId === undefined) {
+        canonicalAlbumIds.set(titleKey, album.id)
+        continue
+      }
+
+      moveTracks.run(canonicalId, album.id)
+      deleteAlbum.run(album.id)
+    }
+
+    db.prepare(`
+      DELETE FROM artists
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tracks WHERE tracks.artist_id = artists.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM albums WHERE albums.album_artist_id = artists.id
+      )
+    `).run()
+  })()
 }
 
 function backfillTrackAlbumRelations() {
@@ -408,6 +583,7 @@ export function getArtistAlbums(artistId: number) {
       artists.name AS album_artist,
       albums.year,
       albums.genre,
+      albums.is_favorite,
       albums.cover_image_path,
       albums.imported_at,
       COUNT(tracks.id) AS track_count,
@@ -475,6 +651,15 @@ export function getAlbumTracks(albumId: number) {
   return stmt.all(albumId)
 }
 
+export function setAlbumFavorite(albumId: number, isFavorite: boolean) {
+  const result = db.prepare(`
+    UPDATE albums
+    SET is_favorite = ?
+    WHERE id = ?
+  `).run(isFavorite ? 1 : 0, albumId)
+  return result.changes > 0
+}
+
 // --- PLAYLIST FUNCTIONS ---
 
 export function createPlaylist(name: string, desc: string, tag: string, coverImagePath: string | null) {
@@ -534,4 +719,26 @@ export function deleteTrack(trackId: number) {
   const stmt = db.prepare('DELETE FROM tracks WHERE id = ?')
   stmt.run(trackId)
   return true
+}
+
+export function deleteAlbums(albumIds: number[]) {
+  const ids = Array.from(
+    new Set(albumIds.filter((id) => Number.isInteger(id) && id > 0))
+  )
+
+  if (ids.length === 0) return 0
+
+  const deleteTracks = db.prepare('DELETE FROM tracks WHERE album_id = ?')
+  const deleteAlbum = db.prepare('DELETE FROM albums WHERE id = ?')
+
+  return db.transaction((selectedAlbumIds: number[]) => {
+    let deletedAlbums = 0
+
+    for (const albumId of selectedAlbumIds) {
+      deleteTracks.run(albumId)
+      deletedAlbums += deleteAlbum.run(albumId).changes
+    }
+
+    return deletedAlbums
+  })(ids)
 }

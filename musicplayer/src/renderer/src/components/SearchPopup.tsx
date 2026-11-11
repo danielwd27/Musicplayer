@@ -1,6 +1,9 @@
 import React, { useRef, useEffect } from "react";
 import { Track, Playlist, Album } from "../env";
-import { formatDuration } from "@renderer/utilities/formatting";
+import {
+  formatDuration,
+  formatTrackArtist,
+} from "@renderer/utilities/formatting";
 
 interface SearchPopupProps {
   isOpen: boolean;
@@ -40,7 +43,7 @@ export default function SearchPopup({
 
   // Filter the list based on the search bar
   const filteredLibrary = library.filter((track) =>
-    `${track.title || ""} ${track.filename} ${track.artist || ""} ${track.album || ""}`
+    `${track.title || ""} ${track.filename} ${formatTrackArtist(track)} ${track.album || ""}`
       .toLowerCase()
       .includes(normalizedQuery),
   );
@@ -197,7 +200,7 @@ export default function SearchPopup({
                   className="text-soft"
                   style={{ fontSize: "12px", textAlign: "left" }}
                 >
-                  {track?.artist ? track?.artist : "Unknown Artist"}
+                  {formatTrackArtist(track)}
                   {" — "}
                   {track?.album ? track.album : "Unknown Album"}
                 </div>
