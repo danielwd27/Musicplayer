@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, Menu, MenuItemConstructorOp
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initializeDatabase, insertTrack, getAllTracks, getAllArtists, getArtistTracks, getArtistAlbums, updateArtist, getAllAlbums, getAlbumTracks, getAllPlaylists, getPlaylistTracks, createPlaylist, addTracksToPlaylist, updatePlaylist,
-  deletePlaylist, removeTrackFromPlaylist, deleteTrack, incrementTrackListenCount } from './database'
+  deletePlaylist, removeTrackFromPlaylist, deleteTrack, deleteAlbums, setAlbumFavorite, incrementTrackListenCount } from './database'
 import icon from '../../resources/icon.png?asset'
 import { createReadStream } from 'fs'
 import fs from 'fs/promises'
@@ -216,7 +216,7 @@ app.whenReady().then(() => {
     }
   })
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('MusicPlayer')
   initializeDatabase()
 
   app.on('browser-window-created', (_, window) => {
@@ -248,6 +248,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('db:getAlbums', () => {
     return getAllAlbums()
+  })
+
+  ipcMain.handle('db:setAlbumFavorite', (_, albumId: number, isFavorite: boolean) => {
+    return setAlbumFavorite(albumId, isFavorite)
   })
 
   ipcMain.handle('db:getArtists', () => {
@@ -293,6 +297,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('db:deleteTrack', (_, trackId: number) => {
     return deleteTrack(trackId)
+  })
+
+  ipcMain.handle('db:deleteAlbums', (_, albumIds: number[]) => {
+    return deleteAlbums(albumIds)
   })
 
   ipcMain.handle('dialog:selectImage', async () => {

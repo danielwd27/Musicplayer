@@ -40,7 +40,6 @@ export default function QueuePopover({ isOpen, queue, currentIndex, onClose, onP
                   onPlayTrack(i)
                   onClose() // Close the queue after picking a song
                 }}
-                // @ts-expect-error onContextMenu is valid at runtime but not in React's type definitions
                 onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => onTrackContextMenu(e, track, i)}
               >
                 {/* Show a play icon if it's the current track, otherwise show the number */}

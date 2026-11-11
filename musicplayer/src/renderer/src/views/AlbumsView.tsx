@@ -3,9 +3,23 @@ import { Album, Track } from "../env";
 import {
   formatDuration,
   formatPlaylistDuration,
+  formatTrackArtist,
 } from "@renderer/utilities/formatting";
 
-type AlbumSortMode = "recently-imported" | "release-year" | "genre";
+type AlbumSortMode =
+  | "recently-imported"
+  | "release-year"
+  | "genre"
+  | "artist"
+  | "album-name";
+
+const albumSortModes: AlbumSortMode[] = [
+  "recently-imported",
+  "release-year",
+  "genre",
+  "artist",
+  "album-name",
+];
 
 interface AlbumsViewProps {
   albums: Album[];
@@ -25,6 +39,8 @@ interface AlbumsViewProps {
     index: number,
   ) => void;
   onAlbumContextMenu: (e: React.MouseEvent, album: Album) => void;
+  onDeleteAlbums: (albumIds: number[]) => Promise<boolean>;
+  onToggleAlbumFavorite: (album: Album) => Promise<void>;
   onImportFiles: () => Promise<number[]>;
   onImportFolder: () => Promise<number[]>;
 }
@@ -43,12 +59,26 @@ export default function AlbumsView({
   onBackToAlbums,
   onTrackContextMenu,
   onAlbumContextMenu,
+  onDeleteAlbums,
+  onToggleAlbumFavorite,
   onImportFiles,
   onImportFolder,
 }: AlbumsViewProps) {
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
   const [albumSortMode, setAlbumSortMode] = useState<AlbumSortMode | null>(
-    null,
+    () => {
+      const savedSortMode = localStorage.getItem("albumSortMode");
+      return albumSortModes.includes(savedSortMode as AlbumSortMode)
+        ? (savedSortMode as AlbumSortMode)
+        : null;
+    },
+  );
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(
+    () => localStorage.getItem("showFavoriteAlbumsOnly") === "true",
+  );
+  const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<number>>(
+    new Set(),
   );
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -57,7 +87,11 @@ export default function AlbumsView({
     0,
   );
 
-  const sortedAlbums = albums.toSorted((a, b) => {
+  const visibleAlbums = showFavoritesOnly
+    ? albums.filter((album) => Boolean(album.is_favorite))
+    : albums;
+
+  const sortedAlbums = visibleAlbums.toSorted((a, b) => {
     if (albumSortMode === "recently-imported") {
       return (
         new Date(b.imported_at || 0).getTime() -
@@ -74,6 +108,17 @@ export default function AlbumsView({
         b.genre || "Unknown Genre",
       );
       return genreCompare || a.title.localeCompare(b.title);
+    }
+
+    if (albumSortMode === "artist") {
+      const artistCompare = (a.album_artist || "Unknown Artist").localeCompare(
+        b.album_artist || "Unknown Artist",
+      );
+      return artistCompare || a.title.localeCompare(b.title);
+    }
+
+    if (albumSortMode === "album-name") {
+      return a.title.localeCompare(b.title);
     }
 
     return a.title.localeCompare(b.title);
@@ -95,6 +140,15 @@ export default function AlbumsView({
 
     if (albumSortMode === "genre") {
       return album.genre?.trim() || "Unknown Genre";
+    }
+
+    if (albumSortMode === "artist") {
+      return album.album_artist?.trim() || "Unknown Artist";
+    }
+
+    if (albumSortMode === "album-name") {
+      const firstCharacter = album.title.trim().charAt(0).toLocaleUpperCase();
+      return /^[A-Z]$/.test(firstCharacter) ? firstCharacter : "#";
     }
 
     return "";
@@ -121,13 +175,86 @@ export default function AlbumsView({
     setAlbumSortMode((prev) => (prev === mode ? null : mode));
   };
 
+  useEffect(() => {
+    if (albumSortMode) {
+      localStorage.setItem("albumSortMode", albumSortMode);
+    } else {
+      localStorage.removeItem("albumSortMode");
+    }
+  }, [albumSortMode]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "showFavoriteAlbumsOnly",
+      String(showFavoritesOnly),
+    );
+  }, [showFavoritesOnly]);
+
+  const toggleAlbumSelection = (albumId: number) => {
+    setSelectedAlbumIds((previousIds) => {
+      const nextIds = new Set(previousIds);
+      if (nextIds.has(albumId)) nextIds.delete(albumId);
+      else nextIds.add(albumId);
+      return nextIds;
+    });
+  };
+
+  const leaveSelectionMode = () => {
+    setIsSelecting(false);
+    setSelectedAlbumIds(new Set());
+  };
+
+  const deleteSelectedAlbums = async () => {
+    const deleted = await onDeleteAlbums(Array.from(selectedAlbumIds));
+    if (deleted) leaveSelectionMode();
+  };
+
   const renderAlbumCard = (album: Album) => (
     <div
       key={album.id}
-      className="album-card"
-      onClick={() => onOpenAlbum(album)}
+      className={`album-card ${selectedAlbumIds.has(album.id) ? "album-card-selected" : ""}`}
+      onClick={() =>
+        isSelecting ? toggleAlbumSelection(album.id) : onOpenAlbum(album)
+      }
       onContextMenu={(e) => onAlbumContextMenu(e, album)}
+      style={
+        selectedAlbumIds.has(album.id)
+          ? { outline: "3px solid var(--green-3)", outlineOffset: "2px" }
+          : undefined
+      }
     >
+      {isSelecting && (
+        <label
+          className="chkbox"
+          style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={selectedAlbumIds.has(album.id)}
+            onChange={() => toggleAlbumSelection(album.id)}
+            aria-label={`Select ${album.title}`}
+          />
+        </label>
+      )}
+      {!isSelecting && (
+        <button
+          type="button"
+          className={`album-favorite-button ${album.is_favorite ? "active" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            void onToggleAlbumFavorite(album);
+          }}
+          aria-label={
+            album.is_favorite
+              ? `Remove ${album.title} from favorites`
+              : `Add ${album.title} to favorites`
+          }
+          title={album.is_favorite ? "Remove from favorites" : "Add to favorites"}
+        >
+          {album.is_favorite ? "★" : "☆"}
+        </button>
+      )}
       <div className="card-image">
         {album.cover_image_path ? (
           <img
@@ -259,6 +386,14 @@ export default function AlbumsView({
               {tracks.length > 0 &&
                 ` • ${formatPlaylistDuration(totalDuration)}`}
             </div>
+            <button
+              type="button"
+              className={selectedAlbum.is_favorite ? "btn-primary" : "btn-light"}
+              onClick={() => void onToggleAlbumFavorite(selectedAlbum)}
+              style={{ marginLeft: 0, marginTop: "10px" }}
+            >
+              {selectedAlbum.is_favorite ? "★ Favorited" : "☆ Add to Favorites"}
+            </button>
           </div>
         </div>
 
@@ -317,7 +452,7 @@ export default function AlbumsView({
                     disabled={!track.artist}
                     title="Open artist page"
                   >
-                    {track.artist || "Unknown Artist"}
+                    {formatTrackArtist(track)}
                   </button>
                   {/* <span>{track.genre}</span> */}
                   <span>{track.year}</span>
@@ -335,7 +470,7 @@ export default function AlbumsView({
 
   return (
     <>
-      <div className="header">
+      <div className="header albums-sticky-header">
         <h1>Your Albums</h1>
         <div
           style={{
@@ -370,14 +505,64 @@ export default function AlbumsView({
           >
             Genre
           </button>
+          <button
+            className={albumSortMode === "artist" ? "btn-primary" : "btn-light"}
+            onClick={() => toggleAlbumSortMode("artist")}
+          >
+            Artist
+          </button>
+          <button
+            className={
+              albumSortMode === "album-name" ? "btn-primary" : "btn-light"
+            }
+            onClick={() => toggleAlbumSortMode("album-name")}
+          >
+            Album
+          </button>
+          <button
+            className={showFavoritesOnly ? "btn-primary" : "btn-light"}
+            onClick={() => setShowFavoritesOnly((current) => !current)}
+          >
+            Favorites
+          </button>
+
+          {isSelecting ? (
+            <>
+              <button
+                className="btn album-selection-cancel"
+                onClick={leaveSelectionMode}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn album-delete-button"
+                onClick={() => void deleteSelectedAlbums()}
+                disabled={selectedAlbumIds.size === 0}
+              >
+                {selectedAlbumIds.size > 0
+                  ? `Delete (${selectedAlbumIds.size})`
+                  : "Delete"}
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn-light"
+              onClick={() => setIsSelecting(true)}
+              disabled={albums.length === 0}
+            >
+              Select
+            </button>
+          )}
 
           {renderImportButton()}
         </div>
       </div>
 
-      {albums.length === 0 ? (
+      {visibleAlbums.length === 0 ? (
         <p style={{ color: "var(--text-3)" }}>
-          You haven't imported any albums yet.
+          {showFavoritesOnly
+            ? "You haven't favorited any albums yet."
+            : "You haven't imported any albums yet."}
         </p>
       ) : albumSortMode ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>

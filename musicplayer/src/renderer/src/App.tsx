@@ -22,7 +22,11 @@ import AlbumContextMenu, { AlbumMenuData } from "./components/AlbumContextMenu";
 import ArtistContextMenu, {
   ArtistMenuData,
 } from "./components/ArtistContextMenu";
-import { formatDuration, formatBitrate } from "./utilities/formatting";
+import {
+  formatDuration,
+  formatBitrate,
+  formatTrackArtist,
+} from "./utilities/formatting";
 import SearchPopup from "./components/SearchPopup";
 
 type ViewState =
@@ -98,6 +102,8 @@ function App() {
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const prevVolumeRef = useRef<number>(1);
+  const mediaNextRef = useRef<() => void>(() => {});
+  const mediaPreviousRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -700,6 +706,19 @@ function App() {
     setIsShuffled(false);
   };
 
+  const handlePlayAlbumNext = async (album: Album) => {
+    try {
+      const albumTracks = await window.api.getAlbumTracks(album.id);
+      if (!albumTracks?.length) return;
+
+      setPlaybackQueue((currentQueue) => [...albumTracks, ...currentQueue]);
+      setUnshuffledQueue(null);
+      setIsShuffled(false);
+    } catch (error) {
+      console.error("Failed to add album to play next:", error);
+    }
+  };
+
   const handleAddToQueue = (track: Track) => {
     setPlaybackQueue((prev) => [...prev, track]);
     setUnshuffledQueue(null);
@@ -783,6 +802,80 @@ function App() {
       }
     } catch (error) {
       console.error("Failed to delete track from library:", error);
+    }
+  };
+
+  const handleDeleteAlbums = async (albumIds: number[]): Promise<boolean> => {
+    const selectedIds = Array.from(new Set(albumIds));
+    if (selectedIds.length === 0) return false;
+
+    const albumLabel = selectedIds.length === 1 ? "this album" : `these ${selectedIds.length} albums`;
+    const confirmed = window.confirm(
+      `Remove ${albumLabel} and all of their songs from your library?\n\nThe original music files will not be deleted.`,
+    );
+    if (!confirmed) return false;
+
+    try {
+      await window.api.deleteAlbums(selectedIds);
+
+      const [updatedLibrary, updatedAlbums, updatedArtists] = await Promise.all([
+        window.api.getLibrary(),
+        window.api.getAlbums(),
+        window.api.getArtists(),
+      ]);
+      const nextLibrary = updatedLibrary || [];
+      const remainingTrackIds = new Set(nextLibrary.map((track) => track.id));
+
+      setAllTracks(nextLibrary);
+      setLibraryCount(nextLibrary.length);
+      setAlbums(updatedAlbums || []);
+      setArtists(updatedArtists || []);
+      setPlaybackQueue((queue) =>
+        queue.filter((track) => remainingTrackIds.has(track.id)),
+      );
+      setHistoryQueue((queue) =>
+        queue.filter((track) => remainingTrackIds.has(track.id)),
+      );
+      setSelectedTrack((track) =>
+        track && remainingTrackIds.has(track.id) ? track : null,
+      );
+      setCurrentTrack((track) => {
+        if (!track || remainingTrackIds.has(track.id)) return track;
+        audioRef.current?.pause();
+        setIsPlaying(false);
+        return null;
+      });
+
+      if (
+        currentView.type === "album" &&
+        selectedIds.includes(currentView.album.id)
+      ) {
+        setCurrentView({ type: "albums" });
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Failed to delete albums:", error);
+      return false;
+    }
+  };
+
+  const handleToggleAlbumFavorite = async (album: Album): Promise<void> => {
+    const isFavorite = !Boolean(album.is_favorite);
+
+    try {
+      await window.api.setAlbumFavorite(album.id, isFavorite);
+      const updateAlbum = (item: Album) =>
+        item.id === album.id ? { ...item, is_favorite: isFavorite } : item;
+
+      setAlbums((currentAlbums) => currentAlbums.map(updateAlbum));
+      setCurrentView((view) =>
+        view.type === "album" && view.album.id === album.id
+          ? { ...view, album: updateAlbum(view.album) }
+          : view,
+      );
+    } catch (error) {
+      console.error("Failed to update album favorite:", error);
     }
   };
 
@@ -1020,6 +1113,91 @@ function App() {
     setHistoryQueue((prev) => prev.slice(0, -1));
     startPlaybackWithQueue(previousTrack, [currentTrack, ...playbackQueue]);
   };
+
+  mediaNextRef.current = playNext;
+  mediaPreviousRef.current = playPrev;
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    if (!currentTrack) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+
+    const artwork = currentTrack.album_image_path
+      ? [
+          {
+            src: `local://stream?path=${encodeURIComponent(currentTrack.album_image_path.replace(/\\/g, "/"))}`,
+          },
+        ]
+      : [];
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.title || currentTrack.filename,
+      artist: formatTrackArtist(currentTrack),
+      album: currentTrack.album || "Unknown Album",
+      artwork,
+    });
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = currentTrack
+      ? isPlaying
+        ? "playing"
+        : "paused"
+      : "none";
+  }, [currentTrack, isPlaying]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || duration <= 0) return;
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: audioRef.current?.playbackRate || 1,
+        position: Math.min(Math.max(currentTime, 0), duration),
+      });
+    } catch (error) {
+      console.warn("Unable to update Windows media position:", error);
+    }
+  }, [currentTime, duration]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    const setHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (error) {
+        console.warn(`Media action ${action} is unavailable:`, error);
+      }
+    };
+
+    setHandler("play", () => {
+      audioRef.current
+        ?.play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => console.error("Playback error:", error));
+    });
+    setHandler("pause", () => {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+    });
+    setHandler("nexttrack", () => mediaNextRef.current());
+    setHandler("previoustrack", () => mediaPreviousRef.current());
+
+    return () => {
+      setHandler("play", null);
+      setHandler("pause", null);
+      setHandler("nexttrack", null);
+      setHandler("previoustrack", null);
+    };
+  }, []);
 
   const shuffle = () => {
     if (isShuffled) {
@@ -1327,7 +1505,7 @@ function App() {
               disabled={!currentTrack}
               title="Open artist page"
             >
-              {currentTrack?.artist ? currentTrack.artist : "Unknown Artist"}
+              {currentTrack ? formatTrackArtist(currentTrack) : "Unknown Artist"}
             </button>
             <span className="player-info-separator">—</span>
             <button
@@ -1576,6 +1754,8 @@ function App() {
                   e.preventDefault();
                   openAlbumContextMenu({ x: e.pageX, y: e.pageY, album });
                 }}
+                onDeleteAlbums={handleDeleteAlbums}
+                onToggleAlbumFavorite={handleToggleAlbumFavorite}
               />
             </>
           )}
@@ -1613,6 +1793,8 @@ function App() {
                   e.preventDefault();
                   openAlbumContextMenu({ x: e.pageX, y: e.pageY, album });
                 }}
+                onDeleteAlbums={handleDeleteAlbums}
+                onToggleAlbumFavorite={handleToggleAlbumFavorite}
               />
             </>
           )}
@@ -1722,13 +1904,12 @@ function App() {
         onDelete={handleDeletePlaylist}
       />
 
-      {/* UNFINISHED ! */}
       <AlbumContextMenu
         menuData={albumContextMenu}
         onClose={() => setAlbumContextMenu(null)}
-        onPlay={() => {}}
+        onPlay={(album) => void handlePlayAlbumNext(album)}
         onVisit={(album) => setCurrentView({ type: "album", album: album })}
-        onDelete={() => {}}
+        onDelete={(albumId) => void handleDeleteAlbums([albumId])}
       />
 
       <ArtistContextMenu

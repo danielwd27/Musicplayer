@@ -101,6 +101,36 @@ code {
   margin-bottom: 20px;
 }
 
+.albums-sticky-header {
+  position: sticky;
+  top: -20px;
+  z-index: 20;
+  padding: 20px 0 12px;
+  background-color: var(--color-background);
+}
+
+.album-favorite-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--gray-1);
+  border-radius: 50%;
+  background: var(--neutral-background-dark);
+  color: var(--white);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.album-favorite-button:hover,
+.album-favorite-button.active {
+  color: #ffd45a;
+  border-color: #ffd45a;
+}
+
 .p {
   color: var(--text-2)
 }
@@ -298,6 +328,30 @@ code {
 
 .btn:disabled {
   background: var(--green-3);
+}
+
+.album-selection-cancel {
+  background: transparent;
+  border-color: var(--button-alt-text);
+  color: var(--button-alt-text);
+}
+
+.album-delete-button,
+.album-delete-button:disabled {
+  background: #ce2b2b;
+  border-color: #ce2b2b;
+  color: var(--white);
+}
+
+.album-delete-button:hover:not(:disabled) {
+  background: #ad2020;
+  border-color: #ad2020;
+  color: var(--white);
+}
+
+.album-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .chkbox input[type="checkbox"] {
@@ -947,6 +1001,7 @@ code {
 }
 
 .album-card {
+  position: relative;
   min-width: 0;
   padding: 14px;
   border: 0;

@@ -40,6 +40,7 @@ const api = {
   getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
   incrementTrackListenCount: (trackId: number) => ipcRenderer.invoke('db:incrementTrackListenCount', trackId),
   getAlbums: () => ipcRenderer.invoke('db:getAlbums'),
+  setAlbumFavorite: (albumId: number, isFavorite: boolean) => ipcRenderer.invoke('db:setAlbumFavorite', albumId, isFavorite),
   getAlbumTracks: (id: number) => ipcRenderer.invoke('db:getAlbumTracks', id),
   getArtists: () => ipcRenderer.invoke('db:getArtists'),
   getArtistTracks: (id: number) => ipcRenderer.invoke('db:getArtistTracks', id),
@@ -53,7 +54,8 @@ const api = {
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) => ipcRenderer.invoke('db:addTracksToPlaylist', playlistId, trackIds),
   deletePlaylist: (id: number) => ipcRenderer.invoke('db:deletePlaylist', id),
   removeTrackFromPlaylist: (playlistId: number, trackId: number) => ipcRenderer.invoke('db:removeTrackFromPlaylist', playlistId, trackId),
-  deleteTrack: (trackId: number) => ipcRenderer.invoke('db:deleteTrack', trackId)
+  deleteTrack: (trackId: number) => ipcRenderer.invoke('db:deleteTrack', trackId),
+  deleteAlbums: (albumIds: number[]) => ipcRenderer.invoke('db:deleteAlbums', albumIds)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

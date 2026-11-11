@@ -1,3 +1,22 @@
+import type { Track } from "../env";
+
+export const formatTrackArtist = (
+  track: Pick<
+    Track,
+    "artist" | "additional_artists" | "featured_artists"
+  >,
+): string => {
+  const primaryArtist = track.artist?.trim() || "Unknown Artist";
+  const additionalArtists = track.additional_artists?.trim();
+  const featuredArtists = track.featured_artists?.trim();
+  const primaryCredits = additionalArtists
+    ? `${primaryArtist}, ${additionalArtists}`
+    : primaryArtist;
+  return featuredArtists
+    ? `${primaryCredits} ft. ${featuredArtists}`
+    : primaryCredits;
+};
+
 export const formatDuration = (seconds?: number): string => {
   if (seconds === undefined || seconds === null || !Number.isFinite(seconds)) {
     return "";
